@@ -62,9 +62,307 @@ When creating a new Word document from scratch, use **docx-js**, which allows yo
 
 ## Editing an existing Word document
 
+**RECOMMENDED WORKFLOW**: Use the YAML-based editing workflow below. This is the preferred method for document editing as it's more maintainable, clearer, and avoids creating temporary Python scripts.
+
+### YAML-based Editing Workflow (RECOMMENDED)
+
+This modern workflow uses declarative YAML configuration instead of temporary Python scripts. All work is done in an isolated project directory with a Python virtual environment.
+
+**When to use**: All document editing tasks, especially:
+- Correcting typos and grammatical errors
+- Making tracked changes for document review
+- Batch editing multiple similar changes
+- Any scenario where you would previously write temporary Python scripts
+
+#### Quick Start
+
+```bash
+# 1. Setup environment (first time only per project)
+bash /path/to/docx/skills/scripts/setup_project_env.sh
+
+# 2. Create YAML configuration (or let Claude generate it)
+cat > .claude-work/edits/corrections.yaml << 'EOF'
+version: "1.0"
+document:
+  input: "document.docx"
+  output: "document_修订版.docx"
+revision:
+  author: "Claude"
+  track_changes: true
+edits:
+  - type: replace_partial
+    description: "Fix typo"
+    find_text: "the complete sentence with error"
+    changes:
+      - delete: "wong"
+        insert: "wrong"
+EOF
+
+# 3. Run one-command workflow
+./.claude-work/workflow.sh document.docx .claude-work/edits/corrections.yaml
+```
+
+#### Detailed Workflow
+
+**Step 1: Environment Setup** (once per project)
+
+```bash
+# In the project directory, run the setup script
+DOCX_SKILLS_PATH=/path/to/docx/skills bash /path/to/docx/skills/scripts/setup_project_env.sh
+```
+
+This creates:
+- `.claude-work/` - Hidden working directory
+- `.claude-work/venv/` - Python virtual environment with all dependencies
+- `.claude-work/edits/` - Directory for YAML configurations
+- `.claude-work/edits/template.yaml` - YAML template
+- Quick-access shell scripts (workflow.sh, unpack.sh, edit.sh, pack.sh)
+- Automatic .gitignore entry
+
+**Step 2: Create YAML Configuration**
+
+Create a YAML file in `.claude-work/edits/` defining your edits. Supported operation types:
+
+```yaml
+version: "1.0"
+
+document:
+  input: "original.docx"
+  output: "revised.docx"
+
+revision:
+  author: "Claude"
+  track_changes: true  # Enables Word's Track Changes
+  rsid: ""            # Leave empty for auto-generation
+
+edits:
+  # Type 1: Partial replacement (RECOMMENDED for corrections)
+  - type: replace_partial
+    description: "Fix typo: recieve → receive"
+    find_text: "I will recieve the package tomorrow"
+    changes:
+      - delete: "recieve"
+        insert: "receive"
+    line_range: [100, 200]  # Optional: narrow search scope
+
+  # Type 2: Insert text
+  - type: insert
+    description: "Add missing word"
+    find_text: "anchor text"
+    position: before  # or 'after'
+    insert: "missing text"
+    line_range: [300, 400]
+
+  # Type 3: Delete text
+  - type: delete
+    description: "Remove redundant text"
+    find_text: "text to delete"
+
+  # Type 4: Add comment
+  - type: comment
+    description: "Add review comment"
+    find_text: "target text"
+    comment: "Please verify this data"
+```
+
+**Step 3: Execute Editing**
+
+```bash
+# Method A: One-command workflow (recommended)
+./.claude-work/workflow.sh document.docx .claude-work/edits/my_corrections.yaml
+
+# Method B: Step by step
+./.claude-work/unpack.sh document.docx
+./.claude-work/edit.sh .claude-work/edits/my_corrections.yaml
+./.claude-work/pack.sh .claude-work/unpacked document_revised.docx
+
+# Note: Both scripts support path auto-completion:
+./.claude-work/workflow.sh document.docx edits/my_corrections.yaml  # Also works!
+```
+
+#### Benefits Over Traditional Python Scripts
+
+| Aspect | Old Method (Python Scripts) | New Method (YAML) | Improvement |
+|--------|---------------------------|-------------------|-------------|
+| Code volume | ~200 lines per task | ~30 lines | 85% reduction |
+| Files created | 3-4 temp scripts | 1 YAML config | 75% fewer |
+| Maintainability | Low | High | Easier to modify |
+| Readability | Python code | Declarative config | Much clearer |
+| Reusability | None | High | Works for all docs |
+| Learning curve | Requires Python | Just YAML | Lower barrier |
+| Environment | Ad-hoc | Isolated venv | Cleaner |
+
+#### Tips
+
+1. **Template available**: Copy `.claude-work/edits/template.yaml` as a starting point
+2. **Line ranges**: Use `line_range: [start, end]` to narrow search when text appears multiple times
+3. **Batch operations**: Include multiple edits in one YAML file - they execute sequentially
+4. **Auto-backup**: Original documents are automatically backed up to `.claude-work/backups/`
+5. **Version control**: Keep YAML configs in git for audit trail; `.claude-work/` is auto-ignored
+
+#### Using python-docx for Document Analysis
+
+The virtual environment includes `python-docx` for document structure analysis and verification. Use it to:
+
+**1. Understand Document Structure**
+
+```python
+from docx import Document
+
+# Activate venv first: source .claude-work/venv/bin/activate
+doc = Document('document.docx')
+
+# Analyze structure
+print(f"Paragraphs: {len(doc.paragraphs)}")
+print(f"Tables: {len(doc.tables)}")
+print(f"Sections: {len(doc.sections)}")
+
+# Find specific content
+for i, para in enumerate(doc.paragraphs):
+    if "search term" in para.text:
+        print(f"Found in paragraph {i}: {para.text[:50]}...")
+
+# Investigate list numbering
+for para in doc.paragraphs:
+    if para.style.name.startswith('List'):
+        print(f"List item: {para.text}")
+        print(f"  Style: {para.style.name}")
+```
+
+**2. Verify Edits After Applying Changes**
+
+```python
+from docx import Document
+
+# Read the revised document
+doc = Document('document_修订版.docx')
+
+# Verify changes
+expected_changes = [
+    ("old text", "new text"),
+    ("error", "correction"),
+]
+
+for old, new in expected_changes:
+    found = False
+    for para in doc.paragraphs:
+        if new in para.text:
+            found = True
+            print(f"✓ Found: '{new}'")
+            break
+    if not found:
+        print(f"✗ Missing: '{new}'")
+
+# Check tracked changes
+for para in doc.paragraphs:
+    for run in para.runs:
+        # python-docx can access revision info
+        if hasattr(run, '_element'):
+            # Check for tracked insertions/deletions
+            pass
+```
+
+**3. Generate Analysis Report**
+
+```python
+from docx import Document
+from collections import Counter
+
+doc = Document('document.docx')
+
+# Text statistics
+all_text = '\n'.join([p.text for p in doc.paragraphs])
+words = all_text.split()
+
+report = {
+    'total_paragraphs': len(doc.paragraphs),
+    'total_tables': len(doc.tables),
+    'total_words': len(words),
+    'styles_used': Counter([p.style.name for p in doc.paragraphs]),
+}
+
+print("Document Analysis Report:")
+for key, value in report.items():
+    print(f"  {key}: {value}")
+```
+
+**4. Pre-Edit Analysis (Recommended Workflow)**
+
+Before generating YAML configuration:
+
+```python
+from docx import Document
+
+doc = Document('original.docx')
+
+# Step 1: Find all occurrences
+search_term = "error text"
+occurrences = []
+
+for i, para in enumerate(doc.paragraphs):
+    if search_term in para.text:
+        occurrences.append({
+            'paragraph_index': i,
+            'text': para.text,
+            'style': para.style.name,
+        })
+
+# Step 2: Generate YAML with precise targeting
+print(f"Found {len(occurrences)} occurrence(s)")
+for occ in occurrences:
+    print(f"Paragraph {occ['paragraph_index']}: {occ['text'][:60]}...")
+
+# Use this info to create accurate YAML with line_range or unique context
+```
+
+**5. Common Tasks**
+
+```python
+from docx import Document
+
+doc = Document('document.docx')
+
+# Task: Find text in tables
+for table in doc.tables:
+    for row in table.rows:
+        for cell in row.cells:
+            if "search" in cell.text:
+                print(f"Found in table: {cell.text}")
+
+# Task: Extract all headings
+headings = []
+for para in doc.paragraphs:
+    if para.style.name.startswith('Heading'):
+        headings.append({
+            'level': para.style.name,
+            'text': para.text,
+        })
+
+# Task: Check formatting
+for para in doc.paragraphs:
+    for run in para.runs:
+        if run.bold:
+            print(f"Bold text: {run.text}")
+        if run.italic:
+            print(f"Italic text: {run.text}")
+```
+
+**Best Practice: Analysis → YAML → Verification**
+
+1. **Analyze** with python-docx to understand structure
+2. **Generate** YAML based on analysis
+3. **Apply** edits using YAML workflow
+4. **Verify** results with python-docx
+
+**Note**: python-docx is for analysis and verification only. For actual editing with tracked changes, continue using the YAML workflow which uses the Document library from ooxml.md.
+
+### Legacy Python Script Workflow
+
+**Note**: This workflow is legacy. Use the YAML-based workflow above instead.
+
 When editing an existing Word document, use the **Document library** (a Python library for OOXML manipulation). The library automatically handles infrastructure setup and provides methods for document manipulation. For complex scenarios, you can access the underlying DOM directly through the library.
 
-### Workflow
+#### Workflow
 1. **MANDATORY - READ ENTIRE FILE**: Read [`ooxml.md`](ooxml.md) (~600 lines) completely from start to finish. **NEVER set any range limits when reading this file.** Read the full file content for the Document library API and XML patterns for directly editing document files.
 2. Unpack the document: `python ooxml/scripts/unpack.py <office_file> <output_directory>`
 3. Create and run a Python script using the Document library (see "Document Library" section in ooxml.md)
@@ -188,10 +486,30 @@ pdftoppm -jpeg -r 150 -f 2 -l 5 document.pdf page  # Converts only pages 2-5
 
 ## Dependencies
 
-Required dependencies (install if not available):
+### System Dependencies
 
-- **pandoc**: `sudo apt-get install pandoc` (for text extraction)
-- **docx**: `npm install -g docx` (for creating new documents)
+Required system tools (install if not available):
+
+- **pandoc**: `sudo apt-get install pandoc` (for text extraction and markdown conversion)
 - **LibreOffice**: `sudo apt-get install libreoffice` (for PDF conversion)
 - **Poppler**: `sudo apt-get install poppler-utils` (for pdftoppm to convert PDF to images)
-- **defusedxml**: `pip install defusedxml` (for secure XML parsing)
+
+### Node.js Dependencies
+
+- **docx**: `npm install -g docx` (for creating new documents with docx-js)
+
+### Python Dependencies
+
+When using the YAML workflow, all Python dependencies are **automatically installed** in the project's virtual environment (`.claude-work/venv/`):
+
+- **defusedxml**: Secure XML parsing for OOXML manipulation
+- **lxml**: XML processing library for document validation
+- **PyYAML**: YAML configuration file parsing
+- **python-docx**: High-level document analysis and verification
+
+**Manual installation** (only needed outside YAML workflow):
+```bash
+pip install defusedxml lxml PyYAML python-docx
+```
+
+**Note**: The YAML workflow's `setup_project_env.sh` script automatically creates a virtual environment and installs all Python dependencies, so manual installation is typically not needed.
