@@ -179,6 +179,13 @@ edits:
 ./.claude-work/workflow.sh document.docx edits/my_corrections.yaml  # Also works!
 ```
 
+After execution completes, the script automatically outputs a formatted edit report showing:
+- Document information (input/output paths, author, track changes status)
+- Detailed status for each operation (success/warning/error)
+- Summary statistics (total operations, success rate)
+
+**⚠️ Important**: After reviewing the report, the workflow is complete. Do not retry failed operations automatically - review the warnings/errors and decide whether manual intervention is needed.
+
 #### Benefits Over Traditional Python Scripts
 
 | Aspect | Old Method (Python Scripts) | New Method (YAML) | Improvement |

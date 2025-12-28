@@ -96,6 +96,9 @@ class WordEditorAspose:
         self.doc = None
         self.author = None
         self.track_changes = False
+        self.operations = []  # Track all operations for final report
+        self.input_path = None
+        self.output_path = None
 
     def _load_config(self, config_file):
         """Load YAML configuration"""
@@ -175,9 +178,9 @@ class WordEditorAspose:
         
         # Resolve and load document
         try:
-            input_path = self._resolve_document_path(doc_config['input'], work_dir)
-            self.doc = aw.Document(str(input_path))
-            print(f"✓ Document loaded: {input_path}")
+            self.input_path = self._resolve_document_path(doc_config['input'], work_dir)
+            self.doc = aw.Document(str(self.input_path))
+            print(f"✓ Document loaded: {self.input_path}")
         except DocumentNotFoundError:
             raise
         except Exception as e:
@@ -231,19 +234,36 @@ class WordEditorAspose:
         print(f"[{index}] {desc}")
         print(f"    Type: {edit_type}")
         
+        # Create operation record
+        operation = {
+            'index': index,
+            'type': edit_type,
+            'description': desc,
+            'status': 'unknown',
+            'details': {}
+        }
+        
         # Route to appropriate handler
-        if edit_type in ('replace_partial_cross_run', 'replace_partial'):
-            self._apply_replace(edit)
-        elif edit_type == 'delete':
-            self._apply_delete(edit)
-        elif edit_type == 'insert':
-            self._apply_insert(edit)
-        elif edit_type == 'comment':
-            self._apply_comment(edit)
-        else:
-            raise ValueError(f"Unsupported edit type: {edit_type}")
+        try:
+            if edit_type in ('replace_partial_cross_run', 'replace_partial'):
+                self._apply_replace(edit, operation)
+            elif edit_type == 'delete':
+                self._apply_delete(edit, operation)
+            elif edit_type == 'insert':
+                self._apply_insert(edit, operation)
+            elif edit_type == 'comment':
+                self._apply_comment(edit, operation)
+            else:
+                raise ValueError(f"Unsupported edit type: {edit_type}")
+        except Exception as e:
+            operation['status'] = 'error'
+            operation['details']['error'] = str(e)
+            self.operations.append(operation)
+            raise
+        
+        self.operations.append(operation)
 
-    def _apply_replace(self, edit):
+    def _apply_replace(self, edit, operation):
         """Apply replace operation using Aspose.Words"""
         # find_text is available for context but not required by Aspose.Words
         # which can search globally across the document
@@ -252,6 +272,9 @@ class WordEditorAspose:
         options = replacing.FindReplaceOptions()
         options.match_case = True
         options.find_whole_words_only = False
+        
+        total_count = 0
+        has_warning = False
         
         for change in changes:
             delete_text = change['delete']
@@ -262,15 +285,26 @@ class WordEditorAspose:
             
             # Aspose.Words automatically handles cross-run matching
             count = self.doc.range.replace(delete_text, insert_text, options)
+            total_count += count
             
             if count == 0:
                 print(f"    ⚠ Warning: Text not found: '{delete_text}'")
+                has_warning = True
             else:
                 print(f"    ✓ Replaced {count} occurrence(s)")
         
+        # Record operation details
+        operation['details']['changes'] = changes
+        operation['details']['occurrences'] = total_count
+        if has_warning:
+            operation['status'] = 'warning'
+            operation['details']['message'] = 'Some text not found'
+        else:
+            operation['status'] = 'success'
+        
         print(f"    ✓ Complete\n")
 
-    def _apply_delete(self, edit):
+    def _apply_delete(self, edit, operation):
         """Apply delete operation"""
         delete_text = edit['delete']
         
@@ -282,14 +316,21 @@ class WordEditorAspose:
         # Delete by replacing with empty string
         count = self.doc.range.replace(delete_text, "", options)
         
+        # Record operation details
+        operation['details']['delete_text'] = delete_text
+        operation['details']['occurrences'] = count
+        
         if count == 0:
             print(f"    ⚠ Warning: Text not found: '{delete_text}'")
+            operation['status'] = 'warning'
+            operation['details']['message'] = 'Text not found'
         else:
             print(f"    ✓ Deleted {count} occurrence(s)")
+            operation['status'] = 'success'
         
         print(f"    ✓ Complete\n")
 
-    def _apply_insert(self, edit):
+    def _apply_insert(self, edit, operation):
         """Apply insert operation"""
         find_text = edit['find_text']
         insert_text = edit['insert']
@@ -310,14 +351,23 @@ class WordEditorAspose:
         
         count = self.doc.range.replace(find_text, replacement, options)
         
+        # Record operation details
+        operation['details']['find_text'] = find_text
+        operation['details']['insert_text'] = insert_text
+        operation['details']['position'] = position
+        operation['details']['occurrences'] = count
+        
         if count == 0:
             print(f"    ⚠ Warning: Text not found: '{find_text}'")
+            operation['status'] = 'warning'
+            operation['details']['message'] = 'Text not found'
         else:
             print(f"    ✓ Inserted at {count} location(s)")
+            operation['status'] = 'success'
         
         print(f"    ✓ Complete\n")
 
-    def _apply_comment(self, edit):
+    def _apply_comment(self, edit, operation):
         """Apply comment operation"""
         find_text = edit['find_text']
         comment_text = edit['comment']
@@ -332,18 +382,29 @@ class WordEditorAspose:
         options.replacing_callback = callback
         
         # Find and add comment (replace with same text)
-        self.doc.range.replace(find_text, find_text, options)
+        count = self.doc.range.replace(find_text, find_text, options)
+        
+        # Record operation details
+        operation['details']['find_text'] = find_text
+        operation['details']['comment'] = comment_text
+        operation['details']['occurrences'] = count
+        
+        if count == 0:
+            operation['status'] = 'warning'
+            operation['details']['message'] = 'Text not found'
+        else:
+            operation['status'] = 'success'
         
         print(f"    ✓ Complete\n")
 
     def save(self):
         """Save document"""
         doc_config = self.config['document']
-        output_path = Path(doc_config.get('output', 'output.docx'))
+        self.output_path = Path(doc_config.get('output', 'output.docx'))
         
         # Make output path absolute if relative
-        if not output_path.is_absolute():
-            output_path = Path.cwd() / output_path
+        if not self.output_path.is_absolute():
+            self.output_path = Path.cwd() / self.output_path
         
         print("Saving document...")
         
@@ -352,14 +413,111 @@ class WordEditorAspose:
             self.doc.stop_track_revisions()
         
         # Save document
-        self.doc.save(str(output_path))
+        self.doc.save(str(self.output_path))
         
-        print(f"✓ Document saved: {output_path}")
+        print(f"✓ Document saved: {self.output_path}")
         
         # Validate output
-        if output_path.exists():
-            file_size = output_path.stat().st_size
+        if self.output_path.exists():
+            file_size = self.output_path.stat().st_size
             print(f"✓ File size: {file_size:,} bytes")
+
+    def print_report(self):
+        """Print beautiful final report"""
+        print()
+        print("═" * 68)
+        print("                    📄 Document Edit Report")
+        print("═" * 68)
+        print()
+        
+        # Document Info
+        print("📁 Document Info")
+        print(f"   Input:  {self.input_path}")
+        print(f"   Output: {self.output_path}")
+        print(f"   Author: {self.author}")
+        print(f"   Track Changes: {'Enabled' if self.track_changes else 'Disabled'}")
+        print()
+        
+        # Operation Details
+        print("─" * 68)
+        print("                      Operation Details")
+        print("─" * 68)
+        print()
+        
+        for op in self.operations:
+            # Operation header
+            print(f"[{op['index']}] {op['description']}")
+            print(f"    Type:   {op['type']}")
+            
+            # Type-specific details
+            details = op['details']
+            if op['type'] in ('replace_partial', 'replace_partial_cross_run'):
+                if 'changes' in details:
+                    for change in details['changes']:
+                        print(f"    Delete: \"{change['delete']}\"")
+                        print(f"    Insert: \"{change['insert']}\"")
+            elif op['type'] == 'delete':
+                if 'delete_text' in details:
+                    print(f"    Delete: \"{details['delete_text']}\"")
+            elif op['type'] == 'insert':
+                if 'find_text' in details:
+                    print(f"    Target: \"{details['find_text']}\"")
+                if 'insert_text' in details:
+                    print(f"    Insert: \"{details['insert_text']}\"")
+                if 'position' in details:
+                    print(f"    Position: {details['position']}")
+            elif op['type'] == 'comment':
+                if 'find_text' in details:
+                    print(f"    Target:  \"{details['find_text']}\"")
+                if 'comment' in details:
+                    print(f"    Comment: \"{details['comment']}\"")
+            
+            # Status
+            status = op['status']
+            if status == 'success':
+                occurrences = details.get('occurrences', 0)
+                if op['type'] == 'comment':
+                    print(f"    Status: ✅ Success")
+                else:
+                    print(f"    Status: ✅ Success ({occurrences} occurrence(s))")
+            elif status == 'warning':
+                msg = details.get('message', 'Warning')
+                print(f"    Status: ⚠️  Warning - {msg}")
+            elif status == 'error':
+                error = details.get('error', 'Unknown error')
+                print(f"    Status: ❌ Error - {error}")
+            
+            print()
+        
+        # Summary
+        print("─" * 68)
+        print("                          Summary")
+        print("─" * 68)
+        print()
+        
+        total = len(self.operations)
+        successful = sum(1 for op in self.operations if op['status'] == 'success')
+        warnings = sum(1 for op in self.operations if op['status'] == 'warning')
+        failed = sum(1 for op in self.operations if op['status'] == 'error')
+        
+        success_rate = (successful / total * 100) if total > 0 else 0
+        
+        print(f"   Total Operations: {total}")
+        print(f"   ✅ Successful: {successful}")
+        print(f"   ⚠️  Warnings:   {warnings}")
+        print(f"   ❌ Failed:     {failed}")
+        print()
+        print(f"   📊 Success Rate: {success_rate:.1f}%")
+        print()
+        
+        # Final status
+        print("═" * 68)
+        if self.output_path and self.output_path.exists():
+            file_size = self.output_path.stat().st_size
+            print(f"   ✅ Document saved: {self.output_path} ({file_size:,} bytes)")
+        else:
+            print(f"   ⚠️  Output file status unknown")
+        print("═" * 68)
 
 
 # ============================================================================
@@ -390,11 +548,7 @@ def main():
         editor.setup(work_dir)
         editor.apply_edits()
         editor.save()
-        
-        print()
-        print("=" * 60)
-        print("✓ All operations completed")
-        print("=" * 60)
+        editor.print_report()
         
     except Exception as e:
         print()
