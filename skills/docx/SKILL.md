@@ -117,7 +117,7 @@ This creates:
 - `.claude-work/edits/` - Directory for YAML configurations
 - `.claude-work/edits/template.yaml` - YAML template
 - Quick-access shell scripts (workflow.sh, unpack.sh, edit.sh, pack.sh)
-- Automatic .gitignore entry
+- Do not update .gitignore entry
 
 **Step 2: Create YAML Configuration**
 

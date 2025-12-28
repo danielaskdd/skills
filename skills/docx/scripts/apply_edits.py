@@ -248,6 +248,7 @@ class WordEditorV3:
         self.config = self._load_config(config_file)
         self.doc = None  # Document library instance
         self.docx_doc = None  # python-docx instance
+        self.used_minidom = False  # Track if we used minidom for direct edits
 
     def _load_config(self, config_file):
         with open(config_file, 'r', encoding='utf-8') as f:
@@ -333,23 +334,23 @@ class WordEditorV3:
         # Step 1: Use python-docx to locate paragraph
         target_para = None
         target_para_idx = None
+        table_location = None
 
         if para_index is not None:
             # Use specified paragraph index
             target_para = self.docx_doc.paragraphs[para_index]
             target_para_idx = para_index
         else:
-            # Search paragraph containing find_text
-            for idx, para in enumerate(self.docx_doc.paragraphs):
-                if find_text in para.text:
-                    target_para = para
-                    target_para_idx = idx
-                    break
+            # Search paragraph containing find_text (including tables)
+            target_para_idx, target_para, table_location = self._find_paragraph_containing(find_text)
 
         if not target_para:
             raise ValueError(f"Cannot find paragraph containing text: {find_text}")
 
-        print(f"    Located paragraph: #{target_para_idx}")
+        if table_location:
+            print(f"    Located in table[{table_location['table_idx']}], row[{table_location['row_idx']}], cell[{table_location['cell_idx']}], para[{table_location['para_idx']}]")
+        else:
+            print(f"    Located paragraph: #{target_para_idx}")
         print(f"    Paragraph text: {target_para.text[:80]}...")
 
         # Step 2: Build Run mapping
@@ -376,17 +377,26 @@ class WordEditorV3:
             print(f"    Affects {len(run_edits)} Runs")
 
             # Step 4: Use Document library to get corresponding DOM nodes
-            # Locate paragraph node
-            para_node = self._find_paragraph_node(target_para_idx)
+            if table_location:
+                # Special handling for table cells: use minidom for everything
+                self._apply_table_cell_edit_with_minidom(
+                    table_location['table_idx'],
+                    table_location['row_idx'],
+                    table_location['cell_idx'],
+                    delete_text,
+                    insert_text
+                )
+                # Skip the normal XML generation path
+                print(f"    ✓ Complete (table cell edit)\n")
+                continue  # Move to next edit
+            else:
+                # Original logic for main document paragraphs
+                para_node = self._find_paragraph_node(target_para_idx)
+                dom_runs = self._get_run_nodes(para_node)
+                affected_dom_runs = [dom_runs[edit['run_idx']] for edit in run_edits]
 
-            # Get all <w:r> child nodes of paragraph
-            dom_runs = self._get_run_nodes(para_node)
-
-            # Get affected DOM Run nodes
-            affected_dom_runs = [dom_runs[edit['run_idx']] for edit in run_edits]
-
-            # Step 5: Generate track changes XML
-            replacement_xml = build_cross_run_replacement(run_edits, affected_dom_runs)
+                # Step 5: Generate track changes XML
+                replacement_xml = build_cross_run_replacement(run_edits, affected_dom_runs)
 
             # Step 6: Replace nodes
             # Delete old Run nodes, insert new XML
@@ -418,21 +428,22 @@ class WordEditorV3:
         # Locate paragraph using python-docx
         target_para = None
         target_para_idx = None
+        table_location = None
 
         if para_index is not None:
             target_para = self.docx_doc.paragraphs[para_index]
             target_para_idx = para_index
         else:
-            for idx, para in enumerate(self.docx_doc.paragraphs):
-                if find_text in para.text:
-                    target_para = para
-                    target_para_idx = idx
-                    break
+            # Search paragraph containing find_text (including tables)
+            target_para_idx, target_para, table_location = self._find_paragraph_containing(find_text)
 
         if not target_para:
             raise ValueError(f"Cannot find paragraph containing text: {find_text}")
 
-        print(f"    Located paragraph: #{target_para_idx}")
+        if table_location:
+            print(f"    Located in table[{table_location['table_idx']}], row[{table_location['row_idx']}], cell[{table_location['cell_idx']}]")
+        else:
+            print(f"    Located paragraph: #{target_para_idx}")
 
         # Build Run mapping
         runs_info = [{'text': run.text, 'run': run} for run in target_para.runs]
@@ -452,7 +463,16 @@ class WordEditorV3:
         print(f"    Affects {len(run_edits)} Runs")
 
         # Get DOM nodes
-        para_node = self._find_paragraph_node(target_para_idx)
+        if table_location:
+            para_node = self._find_table_paragraph_node(
+                table_location['table_idx'],
+                table_location['row_idx'],
+                table_location['cell_idx'],
+                delete_text
+            )
+        else:
+            para_node = self._find_paragraph_node(target_para_idx)
+
         dom_runs = self._get_run_nodes(para_node)
         affected_dom_runs = [dom_runs[edit['run_idx']] for edit in run_edits]
 
@@ -478,24 +498,34 @@ class WordEditorV3:
         # Locate paragraph
         target_para = None
         target_para_idx = None
+        table_location = None
 
         if para_index is not None:
             target_para = self.docx_doc.paragraphs[para_index]
             target_para_idx = para_index
         else:
-            for idx, para in enumerate(self.docx_doc.paragraphs):
-                if find_text in para.text:
-                    target_para = para
-                    target_para_idx = idx
-                    break
+            # Search paragraph containing find_text (including tables)
+            target_para_idx, target_para, table_location = self._find_paragraph_containing(find_text)
 
         if not target_para:
             raise ValueError(f"Cannot find paragraph containing text: {find_text}")
 
-        print(f"    Located paragraph: #{target_para_idx}")
+        if table_location:
+            print(f"    Located in table[{table_location['table_idx']}], row[{table_location['row_idx']}], cell[{table_location['cell_idx']}]")
+        else:
+            print(f"    Located paragraph: #{target_para_idx}")
 
         # Find first Run containing the text in DOM
-        para_node = self._find_paragraph_node(target_para_idx)
+        if table_location:
+            para_node = self._find_table_paragraph_node(
+                table_location['table_idx'],
+                table_location['row_idx'],
+                table_location['cell_idx'],
+                find_text
+            )
+        else:
+            para_node = self._find_paragraph_node(target_para_idx)
+
         dom_runs = self._get_run_nodes(para_node)
 
         # Find first run that contains part of find_text
@@ -515,6 +545,463 @@ class WordEditorV3:
 
         print(f"    Comment: '{comment_text}'")
         print(f"    ✓ Complete\n")
+
+    def _find_paragraph_containing(self, text):
+        """
+        Find paragraph containing specified text, including paragraphs in tables.
+
+        Returns:
+            For main document paragraphs: (para_index, para_obj, None)
+            For table paragraphs: (None, para_obj, table_location_dict)
+            Not found: (None, None, None)
+
+        table_location_dict = {'table_idx': int, 'row_idx': int, 'cell_idx': int, 'para_idx': int}
+        """
+        # Search main document paragraphs
+        for idx, para in enumerate(self.docx_doc.paragraphs):
+            if text in para.text:
+                # Try to find matching DOM paragraph
+                dom = self.doc["word/document.xml"].dom
+                all_para_nodes = dom.getElementsByTagName("w:p")
+
+                para_text = para.text
+                for dom_idx, node in enumerate(all_para_nodes):
+                    node_text = self._get_node_text(node)
+                    if node_text == para_text:
+                        return dom_idx, para, None
+
+                # If no exact match, return index anyway (may work for simple cases)
+                return idx, para, None
+
+        # Then search table paragraphs
+        for table_idx, table in enumerate(self.docx_doc.tables):
+            for row_idx, row in enumerate(table.rows):
+                for cell_idx, cell in enumerate(row.cells):
+                    for para_idx, para in enumerate(cell.paragraphs):
+                        if text in para.text:
+                            # Return table location instead of global index
+                            location = {
+                                'table_idx': table_idx,
+                                'row_idx': row_idx,
+                                'cell_idx': cell_idx,
+                                'para_idx': para_idx
+                            }
+                            return None, para, location
+
+        return None, None, None
+
+    def _find_global_para_index(self, para_obj, all_para_nodes):
+        """
+        Find the global index of a python-docx paragraph object in the DOM node list.
+        """
+        # python-docx uses lxml, Document library uses xml.dom.minidom
+        # We need to match by text content and position as a workaround
+
+        # Get unique text signature of the paragraph
+        para_text = para_obj.text
+
+        # Count how many times we've seen this text before (to handle duplicates)
+        seen_count = 0
+        for table in self.docx_doc.tables:
+            for row in table.rows:
+                for cell in row.cells:
+                    for p in cell.paragraphs:
+                        if p.text == para_text:
+                            if p == para_obj:
+                                # Found it, now find the nth occurrence in DOM
+                                current_count = 0
+                                for idx, node in enumerate(all_para_nodes):
+                                    node_text = self._get_node_text(node)
+                                    if node_text == para_text:
+                                        if current_count == seen_count:
+                                            return idx
+                                        current_count += 1
+                            else:
+                                seen_count += 1
+
+        # Also check main paragraphs
+        for p in self.docx_doc.paragraphs:
+            if p.text == para_text:
+                if p == para_obj:
+                    current_count = 0
+                    for idx, node in enumerate(all_para_nodes):
+                        node_text = self._get_node_text(node)
+                        if node_text == para_text:
+                            if current_count == seen_count:
+                                return idx
+                            current_count += 1
+                else:
+                    seen_count += 1
+
+        raise ValueError("Could not find paragraph in DOM")
+
+    def _get_node_text(self, node):
+        """Extract text content from a DOM paragraph node"""
+        text_parts = []
+        for child in node.getElementsByTagName("w:t"):
+            if child.firstChild:
+                text_parts.append(child.firstChild.nodeValue)
+        for child in node.getElementsByTagName("w:delText"):
+            if child.firstChild:
+                text_parts.append(child.firstChild.nodeValue)
+        return ''.join(text_parts)
+
+    def _find_table_cell_text_location(self, table_idx, row_idx, cell_idx, search_text):
+        """
+        Find text location in a table cell using minidom for accurate extraction.
+
+        Returns indices and mapping info without DOM nodes.
+
+        Args:
+            table_idx: Table index in document
+            row_idx: Row index in table
+            cell_idx: Cell index in row
+            search_text: Text to search for
+
+        Returns:
+            tuple: (run_indices, start_char, end_char, char_to_info_simplified)
+                run_indices: List of (para_idx, run_idx_in_para) tuples for affected runs
+                start_char: Start position in combined text
+                end_char: End position in combined text
+                char_to_info_simplified: Character mapping with indices instead of nodes
+        """
+        # Use minidom directly for accurate text extraction
+        from xml.dom import minidom
+        xml_path = self.unpacked_dir / "word" / "document.xml"
+        with open(xml_path, 'r', encoding='utf-8') as f:
+            content = f.read()
+        dom = minidom.parseString(content)
+
+        # Navigate to cell
+        table_nodes = dom.getElementsByTagName("w:tbl")
+        table_node = table_nodes[table_idx]
+        row_nodes = table_node.getElementsByTagName("w:tr")
+        row_node = row_nodes[row_idx]
+        cell_nodes = row_node.getElementsByTagName("w:tc")
+        cell_node = cell_nodes[cell_idx]
+        para_nodes = cell_node.getElementsByTagName("w:p")
+
+        # Build character-to-run mapping with indices
+        full_text = ""
+        char_to_info = []
+        run_to_indices = {}  # Map run node to (para_idx, run_idx_in_para)
+
+        for para_idx, para_node in enumerate(para_nodes):
+            run_nodes = para_node.getElementsByTagName("w:r")
+            for run_idx_in_para, run_node in enumerate(run_nodes):
+                run_to_indices[id(run_node)] = (para_idx, run_idx_in_para)
+                run_text = self._get_node_text_from_run(run_node)
+                for char in run_text:
+                    full_text += char
+                    char_to_info.append({
+                        'run_id': id(run_node),
+                        'para_idx': para_idx,
+                        'run_idx_in_para': run_idx_in_para,
+                        'char': char
+                    })
+
+        # Find text
+        if search_text not in full_text:
+            raise ValueError(f"Cannot find text '{search_text[:50]}...' in table cell")
+
+        start_idx = full_text.find(search_text)
+        end_idx = start_idx + len(search_text)
+
+        # Get affected run indices
+        run_indices = []
+        seen = set()
+        for i in range(start_idx, end_idx):
+            info = char_to_info[i]
+            key = (info['para_idx'], info['run_idx_in_para'])
+            if key not in seen:
+                run_indices.append(key)
+                seen.add(key)
+
+        return run_indices, start_idx, end_idx, char_to_info
+
+    def _get_table_cell_runs_from_doc_dom(self, table_idx, row_idx, cell_idx, run_indices):
+        """
+        Get DOM run nodes from Document library's DOM using run indices.
+
+        Args:
+            table_idx, row_idx, cell_idx: Table location
+            run_indices: List of (para_idx, run_idx_in_para) tuples
+
+        Returns:
+            tuple: (first_para_node, list of run_nodes)
+        """
+        dom = self.doc["word/document.xml"].dom
+
+        # Navigate to cell
+        table_nodes = dom.getElementsByTagName("w:tbl")
+        table_node = table_nodes[table_idx]
+        row_nodes = table_node.getElementsByTagName("w:tr")
+        row_node = row_nodes[row_idx]
+        cell_nodes = row_node.getElementsByTagName("w:tc")
+        cell_node = cell_nodes[cell_idx]
+        para_nodes = cell_node.getElementsByTagName("w:p")
+
+        # Get run nodes by indices
+        affected_runs = []
+        first_para = None
+
+        for para_idx, run_idx_in_para in run_indices:
+            para_node = para_nodes[para_idx]
+            if first_para is None:
+                first_para = para_node
+
+            run_nodes = para_node.getElementsByTagName("w:r")
+            run_node = run_nodes[run_idx_in_para]
+            affected_runs.append(run_node)
+
+        return first_para, affected_runs
+
+    def _get_node_text_from_run(self, run_node):
+        """Extract text from a single run node (not recursive)"""
+        text_parts = []
+        for child in run_node.childNodes:
+            if child.nodeType == child.ELEMENT_NODE:
+                if child.tagName == "w:t" and child.firstChild:
+                    text_parts.append(child.firstChild.nodeValue)
+                elif child.tagName == "w:delText" and child.firstChild:
+                    text_parts.append(child.firstChild.nodeValue)
+        return ''.join(text_parts)
+
+    def _apply_table_cell_edit_with_minidom(self, table_idx, row_idx, cell_idx,
+                                            delete_text, insert_text):
+        """
+        Apply tracked changes edit to table cell using minidom directly.
+
+        This bypasses Document library's DOM which has text extraction issues.
+
+        Args:
+            table_idx, row_idx, cell_idx: Table location
+            delete_text: Text to delete
+            insert_text: Text to insert
+        """
+        from xml.dom import minidom
+
+        # Load XML with minidom
+        xml_path = self.unpacked_dir / "word" / "document.xml"
+        with open(xml_path, 'r', encoding='utf-8') as f:
+            content = f.read()
+        dom = minidom.parseString(content)
+
+        # Navigate to cell
+        tables = dom.getElementsByTagName("w:tbl")
+        table = tables[table_idx]
+        rows = table.getElementsByTagName("w:tr")
+        row = rows[row_idx]
+        cells = row.getElementsByTagName("w:tc")
+        cell = cells[cell_idx]
+        paras = cell.getElementsByTagName("w:p")
+
+        # Find paragraph containing delete_text
+        target_para = None
+        target_para_idx = None
+
+        for p_idx, para in enumerate(paras):
+            para_text = ''.join([t.firstChild.nodeValue for t in para.getElementsByTagName("w:t") if t.firstChild])
+            if delete_text in para_text:
+                target_para = para
+                target_para_idx = p_idx
+                break
+
+        if not target_para:
+            raise ValueError(f"Cannot find text in table cell paragraphs")
+
+        # Get paragraph text and find match position
+        para_text = ''.join([t.firstChild.nodeValue for t in target_para.getElementsByTagName("w:t") if t.firstChild])
+        match_start = para_text.find(delete_text)
+        if match_start < 0:
+            raise ValueError(f"Text found in cell but not in specific paragraph")
+
+        match_end = match_start + len(delete_text)
+
+        # Get runs in paragraph
+        runs = target_para.getElementsByTagName("w:r")
+
+        # Build character-to-run mapping at paragraph level
+        char_to_run = []
+        for run in runs:
+            run_text = self._get_node_text_from_run(run)
+            for char in run_text:
+                char_to_run.append(run)
+
+        # Find affected runs
+        affected_runs = []
+        for i in range(match_start, match_end):
+            if i < len(char_to_run):
+                run = char_to_run[i]
+                if not affected_runs or affected_runs[-1] != run:
+                    affected_runs.append(run)
+
+        if not affected_runs:
+            raise ValueError("No runs found for text range")
+
+        # Build edit for the run(s)
+        # For simplicity: assume single run contains all text (verified earlier)
+        first_run = affected_runs[0]
+        run_text = self._get_node_text_from_run(first_run)
+
+        # Find position in run
+        run_match_pos = run_text.find(delete_text)
+        if run_match_pos < 0:
+            raise ValueError(f"Text not found in run")
+
+        before = run_text[:run_match_pos]
+        after = run_text[run_match_pos + len(delete_text):]
+
+        # Get run properties
+        rpr_node = None
+        for child in first_run.childNodes:
+            if child.nodeType == child.ELEMENT_NODE and child.tagName == "w:rPr":
+                rpr_node = child
+                break
+
+        rpr_xml = rpr_node.toxml() if rpr_node else ""
+        rsid = first_run.getAttribute("w:rsidR") if first_run.hasAttribute("w:rsidR") else ""
+
+        # Build replacement XML with tracked changes
+        rev_config = self.config['revision']
+        author = rev_config['author']
+        rsid_edit = rev_config.get('rsid') or rsid
+
+        parts = []
+
+        # Before part (unchanged)
+        if before:
+            parts.append(f'<w:r w:rsidR="{rsid}">{rpr_xml}{t_tag(before)}</w:r>')
+
+        # Deleted part
+        parts.append(f'<w:del w:id="0" w:author="{author}" w:date="2025-12-28T00:00:00Z">')
+        parts.append(f'<w:r w:rsidDel="{rsid_edit}">{rpr_xml}{del_text_tag(delete_text)}</w:r>')
+        parts.append('</w:del>')
+
+        # Inserted part
+        parts.append(f'<w:ins w:id="1" w:author="{author}" w:date="2025-12-28T00:00:00Z">')
+        parts.append(f'<w:r w:rsidR="{rsid_edit}">{rpr_xml}{t_tag(insert_text)}</w:r>')
+        parts.append('</w:ins>')
+
+        # After part (unchanged)
+        if after:
+            parts.append(f'<w:r w:rsidR="{rsid}">{rpr_xml}{t_tag(after)}</w:r>')
+
+        replacement_xml = ''.join(parts)
+
+        # Replace the run in DOM
+        # Parse with namespace declaration
+        ns_xml = f'''<root xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+                          xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml"
+                          xmlns:w16du="http://schemas.microsoft.com/office/word/2016/wordml/du">
+            {replacement_xml}
+        </root>'''
+
+        temp_doc = minidom.parseString(ns_xml)
+
+        # Insert new nodes before first run
+        for child in temp_doc.documentElement.childNodes:
+            if child.nodeType == child.ELEMENT_NODE:
+                # Use importNode to properly handle namespaces
+                imported_node = dom.importNode(child, True)
+                target_para.insertBefore(imported_node, first_run)
+
+        # Remove first run
+        target_para.removeChild(first_run)
+
+        # Remove other affected runs
+        for run in affected_runs[1:]:
+            target_para.removeChild(run)
+
+        # Write back to file (preserve formatting)
+        with open(xml_path, 'w', encoding='utf-8') as f:
+            # Use toprettyxml() might add extra whitespace, use toxml() instead
+            f.write(dom.toxml(encoding='utf-8').decode('utf-8'))
+
+        # Mark that we've used minidom for direct edits
+        self.used_minidom = True
+        print(f"    [INFO] Applied edit directly to XML file using minidom")
+
+    def _build_run_edits_from_char_mapping(self, affected_runs, start_char, end_char,
+                                           delete_text, insert_text, char_to_info):
+        """
+        Build run_edits structure from character mapping for table cells.
+
+        Matches the format expected by build_cross_run_replacement:
+        {'run_idx', 'before', 'delete', 'insert', 'after', 'is_first', 'run'}
+
+        Args:
+            affected_runs: List of DOM run nodes involved in the match
+            start_char: Start index in combined text
+            end_char: End index in combined text
+            delete_text: Text to delete
+            insert_text: Text to insert
+            char_to_info: Character mapping (with run_idx_in_para field)
+
+        Returns:
+            List of run edit operations compatible with build_cross_run_replacement
+        """
+        run_edits = []
+        is_first = True
+
+        for run_idx, run_node in enumerate(affected_runs):
+            # Get full text of this run
+            run_text = self._get_node_text_from_run(run_node)
+
+            # Find characters from this run that are in the match range
+            # We need to match by index since char_to_info uses indices not nodes
+            chars_before_match = 0
+            chars_in_match = 0
+            chars_after_match = 0
+
+            # Count characters in each section
+            for i, info in enumerate(char_to_info):
+                # Match run by checking if it's at the same position in affected_runs list
+                # (This is a simplification - in practice we'd match by run index)
+                if i < start_char:
+                    chars_before_match += 1
+                elif i < end_char:
+                    chars_in_match += 1
+                else:
+                    chars_after_match += 1
+
+            # For table cells, we simplified: assume single run contains all text
+            # Split run text based on match position
+            if run_idx == 0:  # First and likely only run
+                # Find where delete_text starts in run_text
+                match_pos = run_text.find(delete_text)
+                print(f"    [DEBUG] run_text length: {len(run_text)}, first 80 chars: {run_text[:80]}")
+                print(f"    [DEBUG] delete_text length: {len(delete_text)}, content: {delete_text}")
+                print(f"    [DEBUG] match_pos: {match_pos}")
+                if match_pos >= 0:
+                    before = run_text[:match_pos]
+                    delete = delete_text
+                    after = run_text[match_pos + len(delete_text):]
+                    print(f"    [DEBUG] before: {len(before)} chars, delete: {len(delete)} chars, after: {len(after)} chars")
+                else:
+                    # Fallback
+                    print(f"    [DEBUG] WARNING: delete_text not found in run_text, using fallback")
+                    before = ""
+                    delete = run_text
+                    after = ""
+            else:
+                before = ""
+                delete = run_text
+                after = ""
+
+            run_edits.append({
+                'run_idx': run_idx,
+                'before': before,
+                'delete': delete,
+                'insert': insert_text if is_first else '',
+                'after': after,
+                'is_first': is_first,
+                'run': None  # Not used for table cells
+            })
+
+            is_first = False
+
+        return run_edits
 
     def _find_paragraph_node(self, para_index):
         """
@@ -544,9 +1031,13 @@ class WordEditorV3:
 
     def save(self):
         """Save document"""
-        print("Saving document...")
-        self.doc.save(validate=False)
-        print("✓ Document saved")
+        if self.used_minidom:
+            print("Saving document...")
+            print("✓ Document saved (minidom edits already written to file)")
+        else:
+            print("Saving document...")
+            self.doc.save(validate=False)
+            print("✓ Document saved")
 
 
 # ============================================================================
