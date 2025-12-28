@@ -36,15 +36,15 @@ echo "3. Installing Python dependencies..."
 source "$VENV_DIR/bin/activate"
 
 pip install --quiet --upgrade pip
-pip install --quiet defusedxml lxml PyYAML python-docx
+pip install --quiet aspose-words PyYAML python-docx defusedxml
 
 echo "   ✓ Installed packages:"
-pip list | grep -E "defusedxml|lxml|PyYAML|python-docx" | sed 's/^/     - /'
+pip list | grep -E "aspose-words|PyYAML|python-docx|defusedxml" | sed 's/^/     - /'
 echo
 
 # 4. Copy utility scripts
 echo "4. Copying utility scripts..."
-cp "$DOCX_SKILLS_PATH/scripts/apply_edits.py" "$WORK_DIR/"
+cp "$DOCX_SKILLS_PATH/scripts/apply_edits.py" "$WORK_DIR/apply_edits.py"
 echo "   ✓ apply_edits.py copied"
 echo
 
@@ -52,44 +52,112 @@ echo
 echo "5. Creating YAML configuration template..."
 cat > "$WORK_DIR/edits/template.yaml" << 'EOF'
 # Word Document Editing Configuration Template
+# Version: 1.0
+
 version: "1.0"
 
 document:
-  input: "original_document.docx"
+  # Path handling: The script will search for the document in multiple locations:
+  #   1. Absolute path (if provided)
+  #   2. Relative to this YAML file location
+  #   3. Relative to .claude-work/ directory
+  #   4. Relative to project root
+  #
+  # Recommended: Use absolute path or place document in project root
+  input: "document.docx"
   output: "document_revised.docx"
 
 revision:
   author: "Claude"
-  track_changes: true
+  track_changes: true  # false to apply changes directly without tracking
   rsid: ""  # Leave empty for auto-generation
 
 edits:
-  # Example 1: Partial replacement (recommended for corrections)
+  # ========================================
+  # Example 1: Fix typos (Recommended Method)
+  # ========================================
   - type: replace_partial
-    description: "Fix typos"
-    find_text: "Complete sentence or paragraph containing the error"
+    description: "Fix spelling error: 'recieve' → 'receive'"
+    find_text: "I will recieve the package tomorrow."
     changes:
-      - delete: "incorrect word"
-        insert: "correct word"
-    line_range: [100, 200]  # Optional, narrows search range
+      - delete: "recieve"
+        insert: "receive"
+    # line_range: [100, 200]  # Optional: narrow search range
 
-  # Example 2: Insert text
+  # ========================================
+  # Example 2: Multiple corrections in same paragraph
+  # ========================================
+  - type: replace_partial
+    description: "Fix multiple typos in same paragraph"
+    find_text: "The sistem is not working properly"
+    changes:
+      - delete: "sistem"
+        insert: "system"
+      - delete: "not working"
+        insert: "working"
+
+  # ========================================
+  # Example 3: Insert missing text
+  # ========================================
   - type: insert
-    description: "Add missing text"
-    find_text: "anchor text"
-    position: before  # before or after
-    insert: "text to insert"
+    description: "Add missing 'not'"
+    find_text: "The system is working properly"
+    position: before  # or 'after'
+    insert: "not "
 
-  # Example 3: Delete text
+  # ========================================
+  # Example 4: Delete redundant text
+  # ========================================
   - type: delete
-    description: "Remove redundant content"
-    find_text: "text to delete"
+    description: "Remove duplicate word"
+    find_text: "the the report"
+    delete: "the "
 
-  # Example 4: Add comment
+  # ========================================
+  # Example 5: Add review comment
+  # ========================================
   - type: comment
-    description: "Add review comment"
-    find_text: "target text"
-    comment: "comment content"
+    description: "Question about data accuracy"
+    find_text: "Sales increased by 150%"
+    comment: "Please verify this figure with the Q3 report"
+
+  # ========================================
+  # IMPORTANT WARNINGS
+  # ========================================
+  #
+  # ⚠ AUTO-NUMBERING WARNING:
+  #   If your document uses auto-numbering (1., 2., 3., etc.),
+  #   DO NOT include the numbers in find_text or delete operations.
+  #   
+  #   ✗ WRONG: find_text: "3. Complete the annual report"
+  #   ✓ RIGHT: find_text: "Complete the annual report"
+  #   
+  #   The numbering is generated automatically by Word and is not
+  #   part of the actual text content.
+  #
+  # ⚠ CROSS-RUN TEXT:
+  #   Text with different formatting is split into "runs".
+  #   This is handled automatically, but be aware that:
+  #   - Bold/italic/underline create separate runs
+  #   - Different fonts or sizes create separate runs
+  #   - The script handles this transparently
+  #
+  # ⚠ UNIQUE CONTEXT:
+  #   Make find_text unique enough to avoid false matches.
+  #   Include surrounding context if the same word appears multiple times.
+  #   
+  #   ✗ RISKY: find_text: "the"  (matches thousands of times)
+  #   ✓ SAFE: find_text: "the system administrator"
+  #
+  # ⚠ PATH HANDLING:
+  #   The input document path can be:
+  #   - Absolute: "/full/path/to/document.docx"
+  #   - Relative to YAML file: "../document.docx"
+  #   - Relative to project root: "document.docx"
+  #   
+  #   If document is not found, you'll get clear error messages
+  #   showing all locations searched.
+
 EOF
 echo "   ✓ Template created: $WORK_DIR/edits/template.yaml"
 echo
@@ -174,10 +242,11 @@ OUTPUT_FILE="$2"
 python3 "$DOCX_SKILLS_PATH/ooxml/scripts/pack.py" "$INPUT_DIR" "$OUTPUT_FILE" --force
 EOF
 
-# Complete workflow script
+# Complete workflow script (Aspose.Words version)
 cat > "$WORK_DIR/workflow.sh" << 'EOF'
 #!/bin/bash
-# Complete Word document editing workflow
+# Complete Word document editing workflow (Aspose.Words)
+# Note: This uses Aspose.Words which processes .docx files directly
 set -e
 
 if [ $# -lt 2 ]; then
@@ -205,42 +274,31 @@ if [ ! -f "$YAML_FILE" ]; then
     fi
 fi
 
-BASENAME=$(basename "$DOCX_FILE" .docx)
-OUTPUT_FILE="${BASENAME}_revised.docx"
-
 echo "=========================================="
 echo "Word Document Editing Workflow"
+echo "Aspose.Words Edition (Direct .docx processing)"
 echo "=========================================="
 echo
 
 echo "Document: $DOCX_FILE"
 echo "Config: $YAML_FILE"
-echo "Output: $OUTPUT_FILE"
 echo
 
 # 1. Backup
 echo "1. Backing up original document..."
+BASENAME=$(basename "$DOCX_FILE" .docx)
 cp "$DOCX_FILE" "$SCRIPT_DIR/backups/${BASENAME}_$(date +%Y%m%d_%H%M%S).docx"
 echo "   ✓ Backed up"
 echo
 
-# 2. Unpack
-echo "2. Unpacking document..."
-bash "$SCRIPT_DIR/unpack.sh" "$DOCX_FILE" "$SCRIPT_DIR/unpacked"
-echo
-
-# 3. Apply edits
-echo "3. Applying edits..."
+# 2. Apply edits (Aspose.Words processes .docx directly)
+echo "2. Applying edits (Aspose.Words)..."
 bash "$SCRIPT_DIR/edit.sh" "$YAML_FILE"
 echo
 
-# 4. Pack
-echo "4. Packing document..."
-bash "$SCRIPT_DIR/pack.sh" "$SCRIPT_DIR/unpacked" "$OUTPUT_FILE"
-echo
-
 echo "=========================================="
-echo "✓ Complete! Output file: $OUTPUT_FILE"
+echo "✓ Workflow complete!"
+echo "Output file is specified in YAML config: document.output"
 echo "=========================================="
 EOF
 
@@ -267,68 +325,103 @@ This directory is automatically created by Claude for Word document editing work
 ├── venv/              # Python virtual environment
 ├── edits/             # YAML edit configuration files
 │   └── template.yaml  # Configuration template
-├── unpacked/          # Unpacked Word documents
+├── unpacked/          # Unpacked Word documents (for manual OOXML editing)
 ├── backups/           # Automatic backups
 ├── logs/              # Operation logs
-├── apply_edits.py     # Editing tool
+├── apply_edits.py     # Editing tool (Aspose.Words)
 ├── *.sh               # Convenience scripts
 └── README.md          # This file
 ```
 
-## Quick Start
+## Quick Start (Aspose.Words Method - Recommended)
 
-### Method 1: One-Step Workflow (Recommended)
+### One-Step Workflow
 
 ```bash
 # 1. Create edit configuration (based on template)
 cp .claude-work/edits/template.yaml .claude-work/edits/my_corrections.yaml
-# Edit my_corrections.yaml
+# Edit my_corrections.yaml - specify document.input and document.output
 
-# 2. Execute complete workflow in one step
+# 2. Execute complete workflow
 ./.claude-work/workflow.sh document.docx .claude-work/edits/my_corrections.yaml
 ```
 
-### Method 2: Step-by-Step Execution
+**How it works:**
+1. Backs up original document
+2. Applies edits using Aspose.Words (directly processes .docx)
+3. Output file is saved as specified in YAML `document.output`
+
+### Direct Editing (No workflow script)
 
 ```bash
-# 1. Unpack
+# Simply run the edit script with your YAML config
+./.claude-work/edit.sh .claude-work/edits/my_corrections.yaml
+```
+
+The output file location is controlled by the `document.output` field in your YAML config.
+
+## Alternative: Manual OOXML Workflow
+
+For advanced users who need direct XML manipulation:
+
+```bash
+# 1. Unpack .docx to XML
 ./.claude-work/unpack.sh document.docx
 
-# 2. Edit (modify YAML configuration)
-vim .claude-work/edits/corrections.yaml
+# 2. Manually edit XML files in .claude-work/unpacked/
 
-# 3. Apply edits
-./.claude-work/edit.sh .claude-work/edits/corrections.yaml
-
-# 4. Pack
+# 3. Pack back to .docx
 ./.claude-work/pack.sh .claude-work/unpacked document_revised.docx
 ```
+
+**Note:** The standard `workflow.sh` uses Aspose.Words and does NOT use unpack/pack.
 
 ## YAML Configuration Guide
 
 See detailed examples in `edits/template.yaml`.
 
-Supported edit types:
+**Key configuration:**
+```yaml
+document:
+  input: "document.docx"      # Path to original document
+  output: "document_revised.docx"  # Where to save edited version
+
+revision:
+  author: "Claude"
+  track_changes: true          # Enable Word Track Changes
+```
+
+**Supported edit types:**
 - `replace_partial`: Partial replacement (recommended for corrections)
-- `replace_full`: Full replacement
 - `insert`: Insert text
 - `delete`: Delete text
-- `comment`: Add comment
+- `comment`: Add review comment
 
 ## Features
 
 - ✅ Automatic backup of original documents
 - ✅ Uses Word Track Changes mode
+- ✅ Direct .docx processing (no XML unpacking needed)
+- ✅ Automatic cross-run text matching
 - ✅ Isolated working environment (virtual environment)
 - ✅ Temporary files don't pollute project directory
 - ✅ Already added to .gitignore
 
 ## Important Notes
 
-1. Documents are automatically backed up to `backups/` directory before editing
-2. All modifications are marked using Word Track Changes mode
-3. Do not manually modify files in `unpacked/` directory
-4. This directory is automatically added to `.gitignore`
+1. **Documents are automatically backed up** to `backups/` directory
+2. **All modifications use Word Track Changes** (can be disabled in YAML)
+3. **Output filename** is specified in YAML `document.output` field
+4. **Aspose.Words** handles complex formatting automatically
+5. **unpacked/ directory** is only used for manual OOXML editing
+6. This directory is automatically added to `.gitignore`
+
+## Workflow Comparison
+
+| Method | Pros | Cons | Use Case |
+|--------|------|------|----------|
+| **Aspose.Words** (default) | Simple, handles cross-run text, track changes | Requires Aspose license | General editing, corrections |
+| **OOXML** (manual) | Full control over XML | Complex, manual handling required | Advanced customization |
 EOF
 echo "   ✓ README.md created"
 echo

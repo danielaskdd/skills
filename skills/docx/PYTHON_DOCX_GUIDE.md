@@ -10,7 +10,7 @@ The `python-docx` library is included in the virtual environment for **document 
 3. 📊 Generating analysis reports
 4. 🎯 Finding precise locations for YAML targeting
 
-**Important**: Use python-docx for **reading and analysis only**. For editing with tracked changes, continue using the YAML workflow with the Document library.
+**Important**: Use python-docx for **reading and analysis only**. For editing with tracked changes, use the YAML workflow.
 
 ## Quick Start
 
@@ -209,7 +209,7 @@ print("\n📝 YAML Configuration Suggestions:")
 print("""
 Use these findings to create accurate YAML:
 - Use full sentence as find_text for unique matching
-- Add line_range if text appears multiple times
+- Include enough context to uniquely identify the location
 - For table cells, use surrounding context
 """)
 ```
@@ -229,7 +229,7 @@ expected_changes = [
 ]
 
 # Load revised document
-doc = Document('document_修订版.docx')
+doc = Document('document_revised.docx')
 
 print("✅ Verification Report:")
 all_text = '\n'.join([p.text for p in doc.paragraphs])
@@ -461,7 +461,7 @@ EOF
 4. ❌ Handle all Word features (some are unsupported)
 
 **For these tasks, use:**
-- **Tracked changes**: YAML workflow with Document library
+- **Tracked changes**: YAML workflow
 - **Complex OOXML**: Direct XML manipulation (ooxml.md)
 - **Revision history**: pandoc with `--track-changes=all`
 
@@ -544,7 +544,7 @@ print(f"   {current_heading}: {word_count} words")
                   │
                   ▼
 ┌─────────────────────────────────────────────┐
-│ 3. EDIT (YAML Workflow + Document Library)  │
+│ 3. EDIT (YAML Workflow)                     │
 │    • Apply tracked changes                  │
 │    • Preserve formatting                    │
 │    • Generate revised document              │

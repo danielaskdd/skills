@@ -1,40 +1,53 @@
 version: "1.0"
+
 document:
-  input: "sample_cross_run.docx"
-  output: "sample_cross_run_edited.docx"
+  input: "test.docx"
+  output: "test_revised.docx"
 
 revision:
-  author: "Claude AI"
+  author: "Claude"
   track_changes: true
-  rsid: "00A1B2C3"  # 可选：自定义 RSID
+  rsid: ""
 
 edits:
-  # 示例 1: 跨 Run 替换（文本跨越普通和粗体格式）
-  # 原始文本可能是: "This is <b>important</b> information"
-  # 逻辑文本: "This is important information"
-  # 物理结构: <w:r>This is </w:r><w:r><w:b/>important</w:r><w:r> information</w:r>
-  - type: replace_partial_cross_run
-    description: "修正拼写错误（跨越多个 Run）"
-    find_text: "This is important information"
-    paragraph_index: 2  # 可选：指定段落索引以提高定位精度
+  # Example 1: Simple text replacement
+  - type: replace_partial
+    description: "Fix typo: recieve → receive"
+    find_text: "I will recieve the package tomorrow"
+    changes:
+      - delete: "recieve"
+        insert: "receive"
+
+  # Example 2: Multiple replacements in one operation
+  - type: replace_partial
+    description: "Update project name"
+    find_text: "The OldProject will launch next month"
+    changes:
+      - delete: "OldProject"
+        insert: "NewProject"
+
+  # Example 3: Cross-run text replacement (works automatically!)
+  - type: replace_partial
+    description: "Fix text spanning formatting boundaries"
+    find_text: "This is important text with emphasis"
     changes:
       - delete: "important"
         insert: "critical"
 
-  # 示例 2: 删除跨 Run 文本
-  - type: replace_partial_cross_run
-    description: "删除多余的词语"
-    find_text: "very very good"
-    changes:
-      - delete: "very very "
-        insert: ""
+  # Example 4: Delete operation
+  - type: delete
+    description: "Remove redundant phrase"
+    delete: "redundant phrase"
 
-  # 示例 3: 多次替换（同一段落）
-  - type: replace_partial_cross_run
-    description: "批量修正日期格式"
-    find_text: "Date: 2024/01/15 to 2024/01/20"
-    changes:
-      - delete: "2024/01/15"
-        insert: "2024-01-15"
-      - delete: "2024/01/20"
-        insert: "2024-01-20"
+  # Example 5: Insert operation
+  - type: insert
+    description: "Add missing word"
+    find_text: "The system is working"
+    position: after
+    insert: " properly"
+
+  # Example 6: Add comment
+  - type: comment
+    description: "Request verification"
+    find_text: "The statistics show 95% accuracy"
+    comment: "Please verify these statistics with the latest data"
