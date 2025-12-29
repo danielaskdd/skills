@@ -27,13 +27,15 @@ Use "Creating a new Word document" workflow
 ## Reading and analyzing content
 
 ### Text extraction
-If you just need to read the text contents of a document, you should convert the document to markdown using pandoc. Pandoc provides excellent support for preserving document structure and can show tracked changes:
+If you just need to read the text contents of a document, you should convert the document to markdown using pandoc. Pandoc provides excellent support for preserving document structure:
 
 ```bash
 # Convert document to markdown with tracked changes
-pandoc --track-changes=all path-to-file.docx -o output.md
+pandoc --track-changes=accept path-to-file.docx -o output.md
 # Options: --track-changes=accept/reject/all
 ```
+
+note: use --track-changes=all to check all changes, including accepted and rejected ones.
 
 ### Raw XML access
 You need raw XML access for: comments, complex formatting, document structure, embedded media, and metadata. For any of these features, you'll need to unpack a document and read its raw XML contents.
@@ -341,7 +343,7 @@ Example - Changing "30 days" to "60 days" in a sentence:
 
 1. **Get markdown representation**: Convert document to markdown with tracked changes preserved:
    ```bash
-   pandoc --track-changes=all path-to-file.docx -o current.md
+   pandoc --track-changes=accept path-to-file.docx -o current.md
    ```
 
 2. **Identify and group changes**: Review the document and identify ALL changes needed, organizing them into logical batches:
@@ -390,7 +392,7 @@ Example - Changing "30 days" to "60 days" in a sentence:
 6. **Final verification**: Do a comprehensive check of the complete document:
    - Convert final document to markdown:
      ```bash
-     pandoc --track-changes=all reviewed-document.docx -o verification.md
+     pandoc --track-changes=accept reviewed-document.docx -o verification.md
      ```
    - Verify ALL changes were applied correctly:
      ```bash
