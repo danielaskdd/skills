@@ -19,14 +19,10 @@ Use "Text extraction" or "Raw XML access" sections below
 Use "Creating a new Word document" workflow
 
 ### Editing Existing Document
-- **Your own document + simple changes**
-  Use "Basic OOXML editing" workflow
-
-- **Someone else's document**
-  Use **"Redlining workflow"** (recommended default)
-
-- **Legal, academic, business, or government docs**
-  Use **"Redlining workflow"** (required)
+- **Defaut edit workflow**
+  Use "YAML-based Editing Workflow"
+- **Native ooxml format edit workflow**
+  Use "ooxml format workflow"
 
 ## Reading and analyzing content
 
@@ -55,7 +51,7 @@ You need raw XML access for: comments, complex formatting, document structure, e
 
 When creating a new Word document from scratch, use **docx-js**, which allows you to create Word documents using JavaScript/TypeScript.
 
-### Workflow
+### Creating a new document workflow
 1. **MANDATORY - READ ENTIRE FILE**: Read [`docx-js.md`](docx-js.md) (~500 lines) completely from start to finish. **NEVER set any range limits when reading this file.** Read the full file content for detailed syntax, critical formatting rules, and best practices before proceeding with document creation.
 2. Create a JavaScript/TypeScript file using Document, Paragraph, TextRun components (You can assume all dependencies are installed, but if not, refer to the dependencies section below)
 3. Export as .docx using Packer.toBuffer()
@@ -164,6 +160,8 @@ edits:
     comment: "Please verify this data"
 ```
 
+Note: Use a unique filename for each editing session. Try to read the YAML file first to get the write permission.
+
 **Step 3: Execute Editing**
 
 ```bash
@@ -192,25 +190,11 @@ After execution completes, show the edit report in console. The script automatic
 
 - After showing the edit report, the workflow is complete.
 - Do not retry failed operations; review the error report instead.
-- Skip the markdown conversion and final verification steps described in the tracked changes workflow.
-
-#### Benefits Over Traditional Python Scripts
-
-| Aspect | Old Method (Python Scripts) | New Method (YAML) | Improvement |
-|--------|---------------------------|-------------------|-------------|
-| Code volume | ~200 lines per task | ~30 lines | 85% reduction |
-| Files created | 3-4 temp scripts | 1 YAML config | 75% fewer |
-| Maintainability | Low | High | Easier to modify |
-| Readability | Python code | Declarative config | Much clearer |
-| Reusability | None | High | Works for all docs |
-| Learning curve | Requires Python | Just YAML | Lower barrier |
-| Environment | Ad-hoc | Isolated venv | Cleaner |
 
 #### Tips
 
 1. **Template available**: Copy `.claude-work/edits/template.yaml` as a starting point
-2. **Line ranges**: Use `line_range: [start, end]` to narrow search when text appears multiple times
-3. **Batch operations**: Include multiple edits in one YAML file - they execute sequentially
+2. **Batch operations**: Include multiple edits in one YAML file - they execute sequentially
 4. **Auto-backup**: Original documents are automatically backed up to `.claude-work/backups/`
 
 #### Best Practices for `find_text`
@@ -370,163 +354,21 @@ for para in doc.paragraphs:
 
 #### Using python-docx for Document Analysis
 
-The virtual environment includes `python-docx` for document structure analysis and verification. Use it to:
-
-**1. Understand Document Structure**
-
-```python
-from docx import Document
-
-# Activate venv first: source .claude-work/venv/bin/activate
-doc = Document('document.docx')
-
-# Analyze structure
-print(f"Paragraphs: {len(doc.paragraphs)}")
-print(f"Tables: {len(doc.tables)}")
-print(f"Sections: {len(doc.sections)}")
-
-# Find specific content
-for i, para in enumerate(doc.paragraphs):
-    if "search term" in para.text:
-        print(f"Found in paragraph {i}: {para.text[:50]}...")
-
-# Investigate list numbering
-for para in doc.paragraphs:
-    if para.style.name.startswith('List'):
-        print(f"List item: {para.text}")
-        print(f"  Style: {para.style.name}")
-```
-
-**2. Verify Edits After Applying Changes**
-
-```python
-from docx import Document
-
-# Read the revised document
-doc = Document('document_revised.docx')
-
-# Verify changes
-expected_changes = [
-    ("old text", "new text"),
-    ("error", "correction"),
-]
-
-for old, new in expected_changes:
-    found = False
-    for para in doc.paragraphs:
-        if new in para.text:
-            found = True
-            print(f"✓ Found: '{new}'")
-            break
-    if not found:
-        print(f"✗ Missing: '{new}'")
-
-# Check tracked changes
-for para in doc.paragraphs:
-    for run in para.runs:
-        # python-docx can access revision info
-        if hasattr(run, '_element'):
-            # Check for tracked insertions/deletions
-            pass
-```
-
-**3. Generate Analysis Report**
-
-```python
-from docx import Document
-from collections import Counter
-
-doc = Document('document.docx')
-
-# Text statistics
-all_text = '\n'.join([p.text for p in doc.paragraphs])
-words = all_text.split()
-
-report = {
-    'total_paragraphs': len(doc.paragraphs),
-    'total_tables': len(doc.tables),
-    'total_words': len(words),
-    'styles_used': Counter([p.style.name for p in doc.paragraphs]),
-}
-
-print("Document Analysis Report:")
-for key, value in report.items():
-    print(f"  {key}: {value}")
-```
-
-**4. Pre-Edit Analysis (Recommended Workflow)**
-
-Before generating YAML configuration:
-
-```python
-from docx import Document
-
-doc = Document('original.docx')
-
-# Step 1: Find all occurrences
-search_term = "error text"
-occurrences = []
-
-for i, para in enumerate(doc.paragraphs):
-    if search_term in para.text:
-        occurrences.append({
-            'paragraph_index': i,
-            'text': para.text,
-            'style': para.style.name,
-        })
-
-# Step 2: Generate YAML with precise targeting
-print(f"Found {len(occurrences)} occurrence(s)")
-for occ in occurrences:
-    print(f"Paragraph {occ['paragraph_index']}: {occ['text'][:60]}...")
-
-# Use this info to create accurate YAML with line_range or unique context
-```
-
-**5. Common Tasks**
-
-```python
-from docx import Document
-
-doc = Document('document.docx')
-
-# Task: Find text in tables
-for table in doc.tables:
-    for row in table.rows:
-        for cell in row.cells:
-            if "search" in cell.text:
-                print(f"Found in table: {cell.text}")
-
-# Task: Extract all headings
-headings = []
-for para in doc.paragraphs:
-    if para.style.name.startswith('Heading'):
-        headings.append({
-            'level': para.style.name,
-            'text': para.text,
-        })
-
-# Task: Check formatting
-for para in doc.paragraphs:
-    for run in para.runs:
-        if run.bold:
-            print(f"Bold text: {run.text}")
-        if run.italic:
-            print(f"Italic text: {run.text}")
-```
+The virtual environment includes `python-docx` for document structure analysis and verification.
 
 **Best Practice: Analysis → YAML → Verification**
 
-1. **Analyze** with python-docx to understand structure
-2. **Generate** YAML based on analysis
-3. **Apply** edits using YAML workflow
-4. **Verify** results with python-docx
-
-**Note**: python-docx is for analysis and verification only. For actual editing with tracked changes, use the YAML workflow.
+1. **Convert** word documents to Markdown to capture core content
+2. **Analyze** with python-docx to understand origin structure when Markdown lacks necessary metadata
+3. **Generate** YAML-based editing configuration file based on analysis
+4. **Apply** edits using YAML Edit workflow
+5. **Output** execution results to the console for user verification
 
 **See [`PYTHON_DOCX_GUIDE.md`](PYTHON_DOCX_GUIDE.md) for detailed examples, analysis scripts, and comprehensive usage guide.**
 
-## Redlining workflow for document review
+**Note**: python-docx is for analysis and verification only. For actual editing with tracked changes, use the YAML workflow.
+
+## ooxml format workflow for document review
 
 This workflow allows you to plan comprehensive tracked changes using markdown before implementing them in OOXML. **CRITICAL**: For complete tracked changes, you must implement ALL changes systematically.
 
@@ -544,7 +386,7 @@ Example - Changing "30 days" to "60 days" in a sentence:
 '<w:r w:rsidR="00AB12CD"><w:t>The term is </w:t></w:r><w:del><w:r><w:delText>30</w:delText></w:r></w:del><w:ins><w:r><w:t>60</w:t></w:r></w:ins><w:r w:rsidR="00AB12CD"><w:t> days.</w:t></w:r>'
 ```
 
-### Tracked changes workflow
+### ooxml edit workflow
 
 1. **Get markdown representation**: Convert document to markdown with tracked changes preserved:
    ```bash
@@ -661,6 +503,7 @@ When using the YAML workflow, all Python dependencies are **automatically instal
 - **aspose-words**: High-performance document editing library (commercial, evaluation version available)
 - **PyYAML**: YAML configuration file parsing
 - **python-docx**: High-level document analysis and verification
+- **defusedxml**: `pip install defusedxml` (for secure XML parsing)
 
 **Manual installation** (only needed outside YAML workflow):
 ```bash

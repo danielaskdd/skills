@@ -50,6 +50,7 @@ echo
 
 # 5. Create YAML template
 echo "5. Creating YAML configuration template..."
+rm -f "$WORK_DIR/edits/*.yaml"
 cat > "$WORK_DIR/edits/template.yaml" << 'EOF'
 # Word Document Editing Configuration Template
 # Version: 1.0
@@ -395,20 +396,6 @@ revision:
 | **OOXML** (manual) | Full control over XML | Complex, manual handling required | Advanced customization |
 EOF
 echo "   ✓ README.md created"
-echo
-
-# 8. Add to .gitignore
-if [ -f ".gitignore" ]; then
-    if ! grep -q "^.claude-work" ".gitignore" 2>/dev/null; then
-        echo ".claude-work/" >> ".gitignore"
-        echo "8. ✓ Added to .gitignore"
-    else
-        echo "8. .gitignore already contains .claude-work"
-    fi
-else
-    echo ".claude-work/" > ".gitignore"
-    echo "8. ✓ Created .gitignore"
-fi
 echo
 
 echo "=========================================="
