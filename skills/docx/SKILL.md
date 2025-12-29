@@ -116,7 +116,7 @@ This creates:
 - `.claude-work/venv/` - Python virtual environment with all dependencies
 - `.claude-work/edits/` - Directory for YAML configurations
 - `.claude-work/edits/template.yaml` - YAML template
-- Quick-access shell scripts (workflow.sh, unpack.sh, edit.sh, pack.sh)
+- Quick-access shell scripts (workflow.sh, unpack.sh, pack.sh)
 
 **Step 2: Create YAML Configuration**
 
@@ -170,10 +170,12 @@ edits:
 # Method A: One-command workflow (recommended)
 ./.claude-work/workflow.sh document.docx .claude-work/edits/my_corrections.yaml
 
-# Method B: Step by step
+# Method B: Step by step (manual approach - only needed for advanced OOXML editing)
 ./.claude-work/unpack.sh document.docx
-./.claude-work/edit.sh .claude-work/edits/my_corrections.yaml
+# Manually edit XML in .claude-work/unpacked/
 ./.claude-work/pack.sh .claude-work/unpacked document_revised.docx
+
+# Note: For YAML-based editing, use workflow.sh (Method A) which calls apply_edits.py directly
 
 # Note: Both scripts support path auto-completion:
 ./.claude-work/workflow.sh document.docx edits/my_corrections.yaml  # Also works!

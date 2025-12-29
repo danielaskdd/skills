@@ -527,8 +527,8 @@ class WordEditorAspose:
 def main():
     """Main function"""
     if len(sys.argv) < 2:
-        print("Usage: python apply_edits_aspose.py <yaml_config_file> [work_directory]")
-        print("Example: python apply_edits_aspose.py .claude-work/edits/my_edit.yaml .claude-work")
+        print("Usage: python apply_edits.py <yaml_config_file> [work_directory]")
+        print("Example: python apply_edits.py .claude-work/edits/my_edit.yaml .claude-work")
         sys.exit(1)
     
     config_file = sys.argv[1]

@@ -163,7 +163,7 @@ echo "   ✓ Template created: $WORK_DIR/edits/template.yaml"
 echo
 
 # 6. Create convenience scripts
-echo "6. Creating convenience scripts..."
+echo "6. Creating convenience shell scripts..."
 
 # Environment setup script
 cat > "$WORK_DIR/env.sh" << EOF
@@ -190,38 +190,6 @@ DOCX_FILE="$1"
 OUTPUT_DIR="${2:-$SCRIPT_DIR/unpacked}"
 
 python3 "$DOCX_SKILLS_PATH/ooxml/scripts/unpack.py" "$DOCX_FILE" "$OUTPUT_DIR"
-EOF
-
-# Edit script
-cat > "$WORK_DIR/edit.sh" << 'EOF'
-#!/bin/bash
-# Apply YAML edit configuration
-if [ $# -lt 1 ]; then
-    echo "Usage: $0 <yaml_config_file>"
-    echo "Example: $0 .claude-work/edits/corrections.yaml"
-    echo "         $0 edits/corrections.yaml  # Auto-complete path"
-    exit 1
-fi
-
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "$SCRIPT_DIR/env.sh"
-
-YAML_FILE="$1"
-
-# Smart path handling: auto-complete relative paths
-if [ ! -f "$YAML_FILE" ]; then
-    BASENAME_YAML=$(basename "$YAML_FILE")
-    if [ -f "$SCRIPT_DIR/edits/$BASENAME_YAML" ]; then
-        echo "Note: Auto-resolving path '$YAML_FILE' to '$SCRIPT_DIR/edits/$BASENAME_YAML'"
-        YAML_FILE="$SCRIPT_DIR/edits/$BASENAME_YAML"
-    else
-        echo "Error: Cannot find config file: $YAML_FILE"
-        echo "Please use full path: .claude-work/edits/xxx.yaml"
-        exit 1
-    fi
-fi
-
-python3 "$SCRIPT_DIR/apply_edits.py" "$YAML_FILE" "$SCRIPT_DIR"
 EOF
 
 # Pack script
@@ -293,7 +261,8 @@ echo
 
 # 2. Apply edits (Aspose.Words processes .docx directly)
 echo "2. Applying edits (Aspose.Words)..."
-bash "$SCRIPT_DIR/edit.sh" "$YAML_FILE"
+source "$SCRIPT_DIR/env.sh"
+python3 "$SCRIPT_DIR/apply_edits.py" "$YAML_FILE" "$SCRIPT_DIR"
 echo
 
 echo "=========================================="
@@ -306,7 +275,6 @@ chmod +x "$WORK_DIR"/*.sh
 echo "   ✓ Convenience scripts created:"
 echo "     - env.sh       (environment variables)"
 echo "     - unpack.sh    (unpack document)"
-echo "     - edit.sh      (apply edits)"
 echo "     - pack.sh      (pack document)"
 echo "     - workflow.sh  (complete workflow)"
 echo
@@ -354,9 +322,12 @@ cp .claude-work/edits/template.yaml .claude-work/edits/my_corrections.yaml
 ### Direct Editing (No workflow script)
 
 ```bash
-# Simply run the edit script with your YAML config
-./.claude-work/edit.sh .claude-work/edits/my_corrections.yaml
+# Activate environment and run apply_edits.py directly
+source .claude-work/env.sh
+python3 .claude-work/apply_edits.py .claude-work/edits/my_corrections.yaml
 ```
+
+**Note:** The second parameter (work directory) is optional and defaults to current directory. The workflow script passes it explicitly for clarity.
 
 The output file location is controlled by the `document.output` field in your YAML config.
 
