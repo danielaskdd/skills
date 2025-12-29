@@ -181,12 +181,18 @@ edits:
 ./.claude-work/workflow.sh document.docx edits/my_corrections.yaml  # Also works!
 ```
 
-After execution completes, the script automatically outputs a formatted edit report showing:
+**Step 4: Show Edit Report**
+
+After execution completes, show the edit report in console. The script automatically outputs a formatted edit report showing:
 - Document information (input/output paths, author, track changes status)
 - Detailed status for each operation (success/warning/error)
 - Summary statistics (total operations, success rate)
 
-**⚠️ Important**: After reviewing the report, the workflow is complete. Do not retry failed operations automatically - review the warnings/errors and decide whether manual intervention is needed.
+**⚠️ Important**
+
+- After showing the edit report, the workflow is complete.
+- Do not retry failed operations; review the error report instead.
+- Skip the markdown conversion and final verification steps described in the tracked changes workflow.
 
 #### Benefits Over Traditional Python Scripts
 
