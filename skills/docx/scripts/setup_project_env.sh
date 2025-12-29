@@ -50,7 +50,7 @@ echo
 
 # 5. Create YAML template
 echo "5. Creating YAML configuration template..."
-rm -f "$WORK_DIR/edits/*.yaml"
+rm -f "$WORK_DIR/edits/"*.yaml
 cat > "$WORK_DIR/edits/template.yaml" << 'EOF'
 # Word Document Editing Configuration Template
 # Version: 1.0

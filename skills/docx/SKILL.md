@@ -116,51 +116,8 @@ This creates:
 
 **Step 2: Create YAML Configuration**
 
-Create a YAML file in `.claude-work/edits/` defining your edits. Supported operation types:
-
-```yaml
-version: "1.0"
-
-document:
-  input: "original.docx"
-  output: "revised.docx"
-
-revision:
-  author: "Claude"
-  track_changes: true  # Enables Word's Track Changes
-  rsid: ""            # Leave empty for auto-generation
-
-edits:
-  # Type 1: Partial replacement (RECOMMENDED for corrections)
-  - type: replace_partial
-    description: "Fix typo: recieve → receive"
-    find_text: "I will recieve the package tomorrow"
-    changes:
-      - delete: "recieve"
-        insert: "receive"
-    line_range: [100, 200]  # Optional: narrow search scope
-
-  # Type 2: Insert text
-  - type: insert
-    description: "Add missing word"
-    find_text: "anchor text"
-    position: before  # or 'after'
-    insert: "missing text"
-    line_range: [300, 400]
-
-  # Type 3: Delete text
-  - type: delete
-    description: "Remove redundant text"
-    find_text: "text to delete"
-
-  # Type 4: Add comment
-  - type: comment
-    description: "Add review comment"
-    find_text: "target text"
-    comment: "Please verify this data"
-```
-
-Note: Use a unique filename for each editing session. Try to read the YAML file first to get the write permission.
+Create a YAML configuration file in .claude-work/edits/ to define your edits. Execute a read operation on the YAML file prior to its creation
+for establishing necessary write access. Refer to template.yaml for a comprehensive list of supported operation types.
 
 **Step 3: Execute Editing**
 
@@ -175,21 +132,15 @@ Note: Use a unique filename for each editing session. Try to read the YAML file 
 
 # Note: For YAML-based editing, use workflow.sh (Method A) which calls apply_edits.py directly
 
-# Note: Both scripts support path auto-completion:
+# Note: The scripts support path auto-completion:
 ./.claude-work/workflow.sh document.docx edits/my_corrections.yaml  # Also works!
 ```
 
 **Step 4: Show Edit Report**
 
-After execution completes, show the edit report in console. The script automatically outputs a formatted edit report showing:
-- Document information (input/output paths, author, track changes status)
-- Detailed status for each operation (success/warning/error)
-- Summary statistics (total operations, success rate)
+After execution completes, show the edit result output from workflow.sh to the screen. No verification is needed. Do not retry failed operations.
 
-**⚠️ Important**
-
-- After showing the edit report, the workflow is complete.
-- Do not retry failed operations; review the error report instead.
+**⚠️ Important**: After showing the edit report, the workflow is complete.
 
 #### Tips
 
