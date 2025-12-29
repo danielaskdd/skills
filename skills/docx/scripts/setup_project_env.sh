@@ -45,7 +45,9 @@ echo
 # 4. Copy utility scripts
 echo "4. Copying utility scripts..."
 cp "$DOCX_SKILLS_PATH/scripts/apply_edits.py" "$WORK_DIR/apply_edits.py"
+cp "$DOCX_SKILLS_PATH/scripts/remove_watermark.py" "$WORK_DIR/remove_watermark.py"
 echo "   ✓ apply_edits.py copied"
+echo "   ✓ remove_watermark.py copied"
 echo
 
 # 5. Create YAML template
@@ -266,9 +268,29 @@ source "$SCRIPT_DIR/env.sh"
 python3 "$SCRIPT_DIR/apply_edits.py" "$YAML_FILE" "$SCRIPT_DIR"
 echo
 
+# 3. Remove Aspose watermark (in-place modification)
+echo "3. Removing Aspose watermark..."
+# Extract output filename from YAML config
+OUTPUT_FILE=$(python3 -c "
+import yaml
+with open('$YAML_FILE', 'r') as f:
+    config = yaml.safe_load(f)
+    print(config['document']['output'])
+")
+
+if [ -f "$OUTPUT_FILE" ] || [ -f "$(pwd)/$OUTPUT_FILE" ]; then
+    # Modify the output file in-place
+    python3 "$SCRIPT_DIR/remove_watermark.py" "$OUTPUT_FILE" "$SCRIPT_DIR"
+    echo "   ✓ Watermark removed from: $OUTPUT_FILE"
+else
+    echo "   ⚠ Warning: Could not find output file: $OUTPUT_FILE"
+    echo "   Skipping watermark removal"
+fi
+echo
+
 echo "=========================================="
 echo "✓ Workflow complete!"
-echo "Output file is specified in YAML config: document.output"
+echo "Final output: $OUTPUT_FILE"
 echo "=========================================="
 EOF
 
