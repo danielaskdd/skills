@@ -37,6 +37,21 @@ pandoc --track-changes=accept path-to-file.docx -o output.md
 
 note: use --track-changes=all to check all changes, including accepted and rejected ones.
 
+### Proofreading and Error Detection Tasks
+
+When the user requests to check for typos, spelling errors, or serious grammatical issues:
+
+1. **Convert to Markdown first**: Use pandoc to convert the document to markdown
+2. **Analyze the markdown content**: Review the text for any issues
+3. **CRITICAL - Early Termination Rule**:
+   - If **NO issues are found** in the markdown content, **immediately report "No issues found" and END the workflow**
+   - Do NOT attempt to use python-docx, raw XML access, or any other tools to search for hypothetical problems
+   - Do NOT assume there might be hidden issues that require deeper analysis
+   - The markdown representation is sufficient for detecting text-level errors
+
+**Example response when no issues found:**
+> "I have reviewed the document and found no typos, spelling errors, or serious grammatical issues."
+
 ### Raw XML access
 You need raw XML access for: comments, complex formatting, document structure, embedded media, and metadata. For any of these features, you'll need to unpack a document and read its raw XML contents.
 
@@ -308,6 +323,20 @@ for para in doc.paragraphs:
 #### Using python-docx for Document Analysis
 
 The virtual environment includes `python-docx` for document structure analysis and verification.
+
+**⚠️ IMPORTANT - When to Use python-docx:**
+
+python-docx should ONLY be used when:
+- You need to understand document structure (styles, numbering, formatting)
+- You need metadata not available in markdown
+- You are preparing YAML edits for **confirmed issues**
+
+**DO NOT use python-docx to:**
+- Search for problems that were not found in markdown
+- Validate whether "hidden" issues exist
+- Re-analyze content already reviewed in markdown format
+
+**For proofreading tasks**: If markdown analysis finds no issues, the task is complete. Do not escalate to python-docx analysis.
 
 **Best Practice: Analysis → YAML → Verification**
 
