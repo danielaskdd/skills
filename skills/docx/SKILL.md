@@ -100,8 +100,8 @@ document:
   input: "document.docx"
   output: "document_revised.docx"
 revision:
-  author: "Claude"
-  track_changes: true
+  author: "Claude"     # Use model short name (e.g., "Claude" for Claude 3.5, or "GPT" for GPT-5.2)
+  track_changes: true  # IMPORTANT: Should be true for revision tracking (default: true)
 edits:
   - type: replace_partial
     description: "Fix typo"

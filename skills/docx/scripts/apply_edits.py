@@ -95,7 +95,7 @@ class WordEditorAspose:
         self.config_file = Path(config_file)
         self.doc = None
         self.author = None
-        self.track_changes = False
+        self.track_changes = True
         self.operations = []  # Track all operations for final report
         self.input_path = None
         self.output_path = None
@@ -201,9 +201,19 @@ class WordEditorAspose:
         
         # Setup revision tracking
         self.author = rev_config['author']
-        self.track_changes = rev_config['track_changes']
+        # Default to True if track_changes not specified in YAML
+        self.track_changes = rev_config.get('track_changes', True)
+        
+        # Check for existing revisions
+        if self.doc.has_revisions:
+            revision_count = self.doc.revisions.count
+            print(f"ℹ Document contains {revision_count} existing revision(s) - will be preserved")
         
         if self.track_changes:
+            # CRITICAL FIX: Set both track_revisions property AND call start_track_revisions()
+            # - track_revisions property: Required for range.replace() to create revisions
+            # - start_track_revisions(): Required for DOM operations and sets author/timestamp
+            self.doc.track_revisions = True
             self.doc.start_track_revisions(self.author, datetime.now())
         
         print(f"✓ Author: {self.author}")
@@ -272,6 +282,8 @@ class WordEditorAspose:
         options = replacing.FindReplaceOptions()
         options.match_case = True
         options.find_whole_words_only = False
+        # Ignore text marked as deleted in existing revisions
+        options.ignore_deleted = True
         
         total_count = 0
         has_warning = False
@@ -312,6 +324,8 @@ class WordEditorAspose:
         
         options = replacing.FindReplaceOptions()
         options.match_case = True
+        # Ignore text marked as deleted in existing revisions
+        options.ignore_deleted = True
         
         # Delete by replacing with empty string
         count = self.doc.range.replace(delete_text, "", options)
@@ -342,6 +356,8 @@ class WordEditorAspose:
         
         options = replacing.FindReplaceOptions()
         options.match_case = True
+        # Ignore text marked as deleted in existing revisions
+        options.ignore_deleted = True
         
         # Insert by replacing find_text with find_text + insert_text or vice versa
         if position == 'before':
