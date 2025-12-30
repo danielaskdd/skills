@@ -93,11 +93,16 @@ def remove_image_watermarks(doc):
     """
     Remove Aspose image watermarks from headers
     
+    Handles two formats:
+    1. DrawingML format (w:drawing) - Modern Office XML
+    2. VML format (w:pict) - Legacy Vector Markup Language (used by Aspose)
+    
     Identification characteristics:
-    1. Run node has no rsidRPr attribute (not manually edited)
-    2. Image wp:docPr name attribute is empty
+    - Run node has no rsidRPr attribute (not manually edited)
+    - DrawingML: Image wp:docPr name attribute is empty
+    - VML: v:imagedata o:title attribute is empty or has watermark characteristics
     """
-    print("Scanning for image watermarks (characteristics: no rsidRPr and empty name)...")
+    print("Scanning for image watermarks (DrawingML and VML formats)...")
     count = 0
 
     for section in doc.sections:
@@ -126,11 +131,10 @@ def remove_image_watermarks(doc):
                     if has_rsidRPr:
                         continue
 
-                    # --- Characteristic check 2: Check if image name is empty ---
-                    # Find all drawings in the run
-                    drawings = r_element.findall('.//w:drawing', namespaces=r_element.nsmap)
-                    
                     is_target_image = False
+                    
+                    # --- Check DrawingML format (w:drawing) ---
+                    drawings = r_element.findall('.//w:drawing', namespaces=r_element.nsmap)
                     for drawing in drawings:
                         # Find docPr attributes
                         docPrs = drawing.findall('.//wp:docPr', namespaces=drawing.nsmap)
@@ -142,6 +146,36 @@ def remove_image_watermarks(doc):
                                 break
                         if is_target_image:
                             break
+                    
+                    # --- Check VML format (w:pict) - Aspose watermarks often use this ---
+                    if not is_target_image:
+                        # Define VML namespace
+                        vml_ns = 'urn:schemas-microsoft-com:vml'
+                        office_ns = 'urn:schemas-microsoft-com:office:office'
+                        
+                        # Find w:pict elements
+                        picts = r_element.findall(qn('w:pict'))
+                        for pict in picts:
+                            # Find v:imagedata within the pict
+                            imagedata_elements = pict.findall('.//{%s}imagedata' % vml_ns)
+                            for imagedata in imagedata_elements:
+                                # Check o:title attribute (Aspose watermarks often have empty title)
+                                title = imagedata.get('{%s}title' % office_ns)
+                                
+                                # Also check for typical watermark characteristics:
+                                # - gain/blacklevel attributes (transparency/brightness adjustments)
+                                # - empty or missing title
+                                gain = imagedata.get('gain')
+                                blacklevel = imagedata.get('blacklevel')
+                                
+                                # Identify as watermark if:
+                                # 1. Title is empty/missing, OR
+                                # 2. Has gain/blacklevel adjustments (typical for watermarks)
+                                if (title is None or not title.strip()) or (gain or blacklevel):
+                                    is_target_image = True
+                                    break
+                            if is_target_image:
+                                break
                     
                     if is_target_image:
                         runs_to_delete.append(run)
