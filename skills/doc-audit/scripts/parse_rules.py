@@ -44,7 +44,7 @@ DEFAULT_RULES = [
 ]
 
 
-def parse_rules_with_llm(input_text: str, api_key: Optional[str] = None) -> list:
+def parse_rules_with_llm(input_text: str, api_key: Optional[str] = None, start_id: int = 5) -> list:
     """
     Use LLM to parse natural language audit criteria into structured rules.
 
@@ -61,7 +61,7 @@ def parse_rules_with_llm(input_text: str, api_key: Optional[str] = None) -> list
         try:
             import google.generativeai as genai
             genai.configure(api_key=google_key)
-            model = genai.GenerativeModel("gemini-1.5-pro")
+            model = genai.GenerativeModel("gemini-3-flash")
 
             prompt = f"""You are an audit rule parser. Convert the following natural language audit criteria into structured JSON rules.
 
@@ -92,9 +92,9 @@ Return ONLY a valid JSON array of rule objects. No explanation, just the JSON ar
             return custom_rules
 
         except ImportError:
-            print("Warning: google-generativeai not installed. Using simple parsing.", file=sys.stderr)
+            print("Warning: google-generativeai not installed. Trying OpenAI instead.", file=sys.stderr)
         except Exception as e:
-            print(f"Warning: LLM parsing failed: {e}. Using simple parsing.", file=sys.stderr)
+            print(f"Warning: LLM parsing failed: {e}. Trying fallback.", file=sys.stderr)
 
     # Try OpenAI as fallback
     openai_key = api_key or os.getenv("OPENAI_API_KEY")
@@ -136,15 +136,15 @@ Return ONLY a valid JSON array of rule objects. No explanation, just the JSON ar
             return custom_rules
 
         except ImportError:
-            print("Warning: openai not installed. Using simple parsing.", file=sys.stderr)
+            print("Warning: openai not installed. Trying simple parsing.", file=sys.stderr)
         except Exception as e:
             print(f"Warning: LLM parsing failed: {e}. Using simple parsing.", file=sys.stderr)
 
     # Fallback: Simple keyword-based parsing
-    return parse_rules_simple(input_text)
+    return parse_rules_simple(input_text, start_id=start_id)
 
 
-def parse_rules_simple(input_text: str) -> list:
+def parse_rules_simple(input_text: str, start_id: int = 5) -> list:
     """
     Simple rule parsing without LLM.
     Extracts keywords and creates basic rules from input text.
@@ -158,7 +158,7 @@ def parse_rules_simple(input_text: str) -> list:
     rules = []
     lines = input_text.strip().split('\n')
 
-    rule_id = 5  # Start after default rules
+    rule_id = start_id
 
     for line in lines:
         line = line.strip()
@@ -264,6 +264,35 @@ def main():
 
     args = parser.parse_args()
 
+    if args.llm:
+        google_key = args.api_key or os.getenv("GOOGLE_API_KEY")
+        openai_key = args.api_key or os.getenv("OPENAI_API_KEY")
+        has_gemini = False
+        has_openai = False
+        try:
+            import google.generativeai  # noqa: F401
+            has_gemini = True
+        except ImportError:
+            pass
+        try:
+            import openai  # noqa: F401
+            has_openai = True
+        except ImportError:
+            pass
+
+        usable_gemini = bool(google_key and has_gemini)
+        usable_openai = bool(openai_key and has_openai)
+
+        if not usable_gemini and not usable_openai:
+            if not (google_key or openai_key):
+                print("Error: --llm requires GOOGLE_API_KEY or OPENAI_API_KEY (or --api-key).", file=sys.stderr)
+            else:
+                print("Error: No supported LLM client installed.", file=sys.stderr)
+            print("Install one of:", file=sys.stderr)
+            print("  pip install google-generativeai", file=sys.stderr)
+            print("  pip install openai", file=sys.stderr)
+            sys.exit(1)
+
     # Get input text
     input_text = ""
     if args.input:
@@ -278,10 +307,11 @@ def main():
     # Parse custom rules
     custom_rules = []
     if input_text:
+        start_id = 1 if args.no_defaults else 5
         if args.llm:
-            custom_rules = parse_rules_with_llm(input_text, args.api_key)
+            custom_rules = parse_rules_with_llm(input_text, args.api_key, start_id=start_id)
         else:
-            custom_rules = parse_rules_simple(input_text)
+            custom_rules = parse_rules_simple(input_text, start_id=start_id)
 
     # Merge with defaults
     if args.no_defaults:

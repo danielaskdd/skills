@@ -16,7 +16,8 @@ from typing import Optional
 try:
     from jinja2 import Environment
 except ImportError:
-    Environment = None
+    print("Error: jinja2 not installed. Run: pip install jinja2", file=sys.stderr)
+    sys.exit(1)
 
 
 # Default HTML template (used if no custom template provided)
@@ -396,7 +397,16 @@ def generate_report_data(manifest: list) -> dict:
         if entry_violations:
             for v in entry_violations:
                 issue_type = v.get('issue_type', 'other')
-                severity = 'high' if issue_type in ['semantic_risk', 'logic', 'compliance'] else 'medium'
+                severity = v.get('severity')
+                if severity:
+                    severity = str(severity).lower()
+                if not severity:
+                    if issue_type in ['semantic_risk', 'logic', 'compliance']:
+                        severity = 'high'
+                    elif issue_type in ['clarity', 'grammar']:
+                        severity = 'medium'
+                    else:
+                        severity = 'low'
 
                 violations.append({
                     'uuid': entry.get('uuid', ''),

@@ -334,7 +334,7 @@ def main():
         "--end-block",
         type=int,
         default=-1,
-        help="End at this block index (default: all blocks)"
+        help="End at this block index (inclusive, default: all blocks)"
     )
     parser.add_argument(
         "--resume",
@@ -381,11 +381,17 @@ def main():
         if not HAS_GEMINI:
             print("Error: google-generativeai not installed", file=sys.stderr)
             sys.exit(1)
+        if not os.getenv("GOOGLE_API_KEY"):
+            print("Error: GOOGLE_API_KEY not set", file=sys.stderr)
+            sys.exit(1)
         use_gemini = True
         genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
     elif "gpt" in model_name.lower():
         if not HAS_OPENAI:
             print("Error: openai not installed", file=sys.stderr)
+            sys.exit(1)
+        if not os.getenv("OPENAI_API_KEY"):
+            print("Error: OPENAI_API_KEY not set", file=sys.stderr)
             sys.exit(1)
 
     if use_gemini:
@@ -408,8 +414,8 @@ def main():
 
     # Determine block range
     start_idx = args.start_block
-    end_idx = args.end_block if args.end_block >= 0 else len(blocks)
-    blocks_to_process = blocks[start_idx:end_idx]
+    end_idx = args.end_block if args.end_block >= 0 else len(blocks) - 1
+    blocks_to_process = blocks[start_idx:end_idx + 1]
 
     print(f"\nUsing model: {model_name}")
     print(f"Processing blocks {start_idx} to {end_idx}")

@@ -128,6 +128,18 @@ pip install aspose-words jinja2 google-generativeai openai
 
 **Recommended LLM:** Gemini-3-Flash or GPT-5.2
 
+### Preflight Dependency Check (Required)
+
+Before running any script, the agent must verify the runtime prerequisites. If any required dependency is missing, stop and tell the user exactly how to install it and which environment variables to set.
+
+- `parse_document.py` requires `aspose-words`
+- `generate_report.py` uses `jinja2` (optional; falls back to a minimal template if missing)
+- `run_audit.py` requires at least one LLM client:
+  - Gemini: `google-generativeai` + `GOOGLE_API_KEY`
+  - OpenAI: `openai` + `OPENAI_API_KEY`
+
+**Failure handling:** If a required package or API key is missing, do not proceed with the workflow. Provide the exact `pip install ...` command(s) and the `export ...` command(s) needed to prepare the environment.
+
 ### Environment Variables
 
 ```bash
