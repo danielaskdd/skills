@@ -1,0 +1,489 @@
+#!/usr/bin/env python3
+"""
+ABOUTME: Executes LLM-based audit on document text blocks
+ABOUTME: Sends each block with context and rules to LLM, saves results to manifest
+"""
+
+import argparse
+import json
+import os
+import sys
+import time
+from pathlib import Path
+from typing import Optional
+
+# Try to import LLM libraries
+HAS_GEMINI = False
+HAS_OPENAI = False
+
+try:
+    import google.generativeai as genai
+    HAS_GEMINI = True
+except ImportError:
+    pass
+
+try:
+    import openai
+    HAS_OPENAI = True
+except ImportError:
+    pass
+
+
+def load_blocks(file_path: str) -> list:
+    """
+    Load text blocks from JSONL or JSON file.
+
+    Args:
+        file_path: Path to blocks file
+
+    Returns:
+        List of block dictionaries
+    """
+    blocks = []
+    path = Path(file_path)
+
+    if path.suffix == '.jsonl':
+        with open(path, 'r', encoding='utf-8') as f:
+            for line in f:
+                line = line.strip()
+                if line:
+                    blocks.append(json.loads(line))
+    else:
+        with open(path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+            if isinstance(data, list):
+                blocks = data
+            elif 'blocks' in data:
+                blocks = data['blocks']
+            else:
+                raise ValueError(f"Unknown JSON format in {file_path}")
+
+    return blocks
+
+
+def load_rules(file_path: str) -> list:
+    """
+    Load audit rules from JSON file.
+
+    Args:
+        file_path: Path to rules JSON file
+
+    Returns:
+        List of rule dictionaries
+    """
+    with open(file_path, 'r', encoding='utf-8') as f:
+        data = json.load(f)
+
+    if isinstance(data, list):
+        return data
+    elif 'rules' in data:
+        return data['rules']
+    else:
+        raise ValueError(f"Unknown rules format in {file_path}")
+
+
+def format_block_for_prompt(block: dict) -> str:
+    """
+    Format a text block for inclusion in the audit prompt.
+
+    Args:
+        block: Block dictionary with heading, content, type
+
+    Returns:
+        Formatted string
+    """
+    heading = block.get('heading', 'Unknown')
+    content = block.get('content', '')
+    block_type = block.get('type', 'text')
+    parent_headings = block.get('parent_headings', [])
+
+    context = ""
+    if parent_headings:
+        context = f"Context hierarchy: {' > '.join(parent_headings)}\n"
+
+    if block_type == 'table':
+        # Format table as readable text
+        if isinstance(content, list):
+            rows = []
+            for row in content:
+                rows.append(" | ".join(str(cell) for cell in row))
+            content = "\n".join(rows)
+
+    return f"""Section: {heading}
+{context}
+Content:
+{content}"""
+
+
+def format_rules_for_prompt(rules: list) -> str:
+    """
+    Format audit rules for inclusion in the prompt.
+
+    Args:
+        rules: List of rule dictionaries
+
+    Returns:
+        Formatted string
+    """
+    lines = ["Audit Rules:"]
+    for rule in rules:
+        severity = rule.get('severity', 'medium').upper()
+        lines.append(f"- [{rule['id']}] ({severity}) {rule['description']}")
+
+    return "\n".join(lines)
+
+
+def build_audit_prompt(block: dict, rules: list) -> str:
+    """
+    Build the complete audit prompt for LLM.
+
+    Args:
+        block: Text block to audit
+        rules: Audit rules to apply
+
+    Returns:
+        Complete prompt string
+    """
+    block_text = format_block_for_prompt(block)
+    rules_text = format_rules_for_prompt(rules)
+
+    prompt = f"""You are a professional document auditor. Analyze the following text block and check for violations of the given rules.
+
+{block_text}
+
+---
+
+{rules_text}
+
+---
+
+Instructions:
+1. Check if this text block violates ANY of the rules above
+2. For each violation found, provide:
+   - The rule ID that was violated
+   - The specific text that violates the rule
+   - Why it's a violation
+   - A suggested correction
+
+Return your analysis as a JSON object with this structure:
+{{
+  "is_violation": true/false,
+  "violations": [
+    {{
+      "rule_id": "R001",
+      "issue_type": "grammar|clarity|logic|compliance|format|semantic_risk|other",
+      "violation_text": "the specific problematic text",
+      "violation_reason": "explanation of why this violates the rule",
+      "suggestion": "suggested correction"
+    }}
+  ]
+}}
+
+If there are no violations, return:
+{{
+  "is_violation": false,
+  "violations": []
+}}
+
+Return ONLY the JSON object, no other text."""
+
+    return prompt
+
+
+def audit_block_gemini(block: dict, rules: list, model_name: str = "gemini-1.5-pro") -> dict:
+    """
+    Audit a text block using Google Gemini.
+
+    Args:
+        block: Text block to audit
+        rules: Audit rules to apply
+        model_name: Gemini model to use
+
+    Returns:
+        Audit result dictionary
+    """
+    prompt = build_audit_prompt(block, rules)
+
+    model = genai.GenerativeModel(model_name)
+    response = model.generate_content(prompt)
+    response_text = response.text.strip()
+
+    # Clean up JSON response
+    if response_text.startswith("```json"):
+        response_text = response_text[7:]
+    if response_text.startswith("```"):
+        response_text = response_text[3:]
+    if response_text.endswith("```"):
+        response_text = response_text[:-3]
+
+    result = json.loads(response_text.strip())
+    return result
+
+
+def audit_block_openai(block: dict, rules: list, model_name: str = "gpt-4o") -> dict:
+    """
+    Audit a text block using OpenAI.
+
+    Args:
+        block: Text block to audit
+        rules: Audit rules to apply
+        model_name: OpenAI model to use
+
+    Returns:
+        Audit result dictionary
+    """
+    prompt = build_audit_prompt(block, rules)
+
+    client = openai.OpenAI()
+    response = client.chat.completions.create(
+        model=model_name,
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0.2
+    )
+
+    response_text = response.choices[0].message.content.strip()
+
+    # Clean up JSON response
+    if response_text.startswith("```json"):
+        response_text = response_text[7:]
+    if response_text.startswith("```"):
+        response_text = response_text[3:]
+    if response_text.endswith("```"):
+        response_text = response_text[:-3]
+
+    result = json.loads(response_text.strip())
+    return result
+
+
+def save_manifest_entry(manifest_path: str, entry: dict):
+    """
+    Append an entry to the manifest JSONL file.
+
+    Args:
+        manifest_path: Path to manifest file
+        entry: Entry dictionary to append
+    """
+    with open(manifest_path, 'a', encoding='utf-8') as f:
+        f.write(json.dumps(entry, ensure_ascii=False) + '\n')
+
+
+def load_completed_uuids(manifest_path: str) -> set:
+    """
+    Load UUIDs of already-processed blocks from manifest.
+
+    Args:
+        manifest_path: Path to manifest file
+
+    Returns:
+        Set of completed UUIDs
+    """
+    completed = set()
+    path = Path(manifest_path)
+
+    if path.exists():
+        with open(path, 'r', encoding='utf-8') as f:
+            for line in f:
+                line = line.strip()
+                if line:
+                    entry = json.loads(line)
+                    completed.add(entry.get('uuid', ''))
+
+    return completed
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Run LLM-based audit on document text blocks"
+    )
+    parser.add_argument(
+        "--document", "-d",
+        type=str,
+        required=True,
+        help="Path to document blocks file (JSONL or JSON)"
+    )
+    parser.add_argument(
+        "--rules", "-r",
+        type=str,
+        required=True,
+        help="Path to audit rules JSON file"
+    )
+    parser.add_argument(
+        "--output", "-o",
+        type=str,
+        default="manifest.jsonl",
+        help="Output manifest file path (default: manifest.jsonl)"
+    )
+    parser.add_argument(
+        "--model",
+        type=str,
+        default="auto",
+        help="LLM model to use: gemini-1.5-pro, gpt-4o, or auto (default: auto)"
+    )
+    parser.add_argument(
+        "--rate-limit",
+        type=float,
+        default=0.5,
+        help="Seconds to wait between API calls (default: 0.5)"
+    )
+    parser.add_argument(
+        "--start-block",
+        type=int,
+        default=0,
+        help="Start from this block index (for resuming)"
+    )
+    parser.add_argument(
+        "--end-block",
+        type=int,
+        default=-1,
+        help="End at this block index (default: all blocks)"
+    )
+    parser.add_argument(
+        "--resume",
+        action="store_true",
+        help="Resume from previous run (skip already-processed blocks)"
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Print prompts without calling LLM"
+    )
+
+    args = parser.parse_args()
+
+    # Check for LLM availability
+    if not args.dry_run:
+        if not HAS_GEMINI and not HAS_OPENAI:
+            print("Error: No LLM library installed.", file=sys.stderr)
+            print("Install one of:", file=sys.stderr)
+            print("  pip install google-generativeai", file=sys.stderr)
+            print("  pip install openai", file=sys.stderr)
+            sys.exit(1)
+
+    # Determine which model to use
+    use_gemini = False
+    use_openai = False
+    model_name = args.model
+
+    if model_name == "auto":
+        if HAS_GEMINI and os.getenv("GOOGLE_API_KEY"):
+            use_gemini = True
+            model_name = "gemini-1.5-pro"
+        elif HAS_OPENAI and os.getenv("OPENAI_API_KEY"):
+            use_openai = True
+            model_name = "gpt-4o"
+        else:
+            print("Error: No API key found. Set GOOGLE_API_KEY or OPENAI_API_KEY", file=sys.stderr)
+            sys.exit(1)
+    elif "gemini" in model_name.lower():
+        if not HAS_GEMINI:
+            print("Error: google-generativeai not installed", file=sys.stderr)
+            sys.exit(1)
+        use_gemini = True
+        genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
+    elif "gpt" in model_name.lower():
+        if not HAS_OPENAI:
+            print("Error: openai not installed", file=sys.stderr)
+            sys.exit(1)
+        use_openai = True
+
+    if use_gemini:
+        genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
+
+    # Load inputs
+    print(f"Loading blocks from: {args.document}")
+    blocks = load_blocks(args.document)
+    print(f"Loaded {len(blocks)} blocks")
+
+    print(f"Loading rules from: {args.rules}")
+    rules = load_rules(args.rules)
+    print(f"Loaded {len(rules)} rules")
+
+    # Handle resume
+    completed_uuids = set()
+    if args.resume and Path(args.output).exists():
+        completed_uuids = load_completed_uuids(args.output)
+        print(f"Resuming: {len(completed_uuids)} blocks already processed")
+
+    # Determine block range
+    start_idx = args.start_block
+    end_idx = args.end_block if args.end_block >= 0 else len(blocks)
+    blocks_to_process = blocks[start_idx:end_idx]
+
+    print(f"\nUsing model: {model_name}")
+    print(f"Processing blocks {start_idx} to {end_idx}")
+    print(f"Output: {args.output}")
+    print("-" * 50)
+
+    # Process blocks
+    violations_found = 0
+    blocks_processed = 0
+
+    for i, block in enumerate(blocks_to_process):
+        block_idx = start_idx + i
+        block_uuid = block.get('uuid', str(block_idx))
+
+        # Skip if already processed
+        if block_uuid in completed_uuids:
+            print(f"[{block_idx+1}/{len(blocks)}] Skipping (already processed)")
+            continue
+
+        print(f"[{block_idx+1}/{len(blocks)}] Auditing: {block.get('heading', 'Unknown')[:50]}...")
+
+        if args.dry_run:
+            prompt = build_audit_prompt(block, rules)
+            print(f"\n--- Prompt ---\n{prompt[:500]}...")
+            continue
+
+        try:
+            # Call LLM
+            if use_gemini:
+                result = audit_block_gemini(block, rules, model_name)
+            else:
+                result = audit_block_openai(block, rules, model_name)
+
+            # Build manifest entry
+            entry = {
+                "uuid": block_uuid,
+                "p_heading": block.get('heading', ''),
+                "p_content": block.get('content', '') if isinstance(block.get('content'), str) else json.dumps(block.get('content', '')),
+                "is_violation": result.get('is_violation', False),
+                "violations": result.get('violations', [])
+            }
+
+            # For backward compatibility with single-violation format
+            if entry['is_violation'] and entry['violations']:
+                first_violation = entry['violations'][0]
+                entry['issue_type'] = first_violation.get('issue_type', 'other')
+                entry['rule_id'] = first_violation.get('rule_id', '')
+                entry['violation_reason'] = first_violation.get('violation_reason', '')
+                entry['suggestion'] = first_violation.get('suggestion', '')
+
+            # Save to manifest
+            save_manifest_entry(args.output, entry)
+
+            if entry['is_violation']:
+                violations_found += 1
+                print(f"    Found {len(entry['violations'])} violation(s)")
+            else:
+                print(f"    OK")
+
+            blocks_processed += 1
+
+            # Rate limiting
+            time.sleep(args.rate_limit)
+
+        except json.JSONDecodeError as e:
+            print(f"    Error: Failed to parse LLM response: {e}", file=sys.stderr)
+        except Exception as e:
+            print(f"    Error: {e}", file=sys.stderr)
+
+    # Summary
+    print("\n" + "=" * 50)
+    print("Audit Complete")
+    print(f"Blocks processed: {blocks_processed}")
+    print(f"Violations found: {violations_found}")
+    print(f"Manifest saved to: {args.output}")
+
+
+if __name__ == "__main__":
+    main()
