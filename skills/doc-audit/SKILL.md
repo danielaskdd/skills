@@ -69,7 +69,7 @@ Execute LLM audit on each text block:
 
 ```bash
 python scripts/run_audit.py --document blocks.jsonl --rules rules.json
-python scripts/run_audit.py --document document.docx --rules rules.json --model gemini-1.5-pro
+python scripts/run_audit.py --document blocks.jsonl --rules rules.json --model gemini-3-flash
 ```
 
 **Process:**
@@ -77,6 +77,7 @@ python scripts/run_audit.py --document document.docx --rules rules.json --model 
 - Submits each block independently to LLM
 - Saves intermediate results to manifest.jsonl
 - Supports resume from interruption
+- Accepts JSON/JSONL blocks only (use `parse_document.py` first)
 
 **Returns:** Audit manifest (JSONL) with findings
 
@@ -94,6 +95,7 @@ python scripts/generate_report.py manifest.jsonl --output report.html --template
 - Issue details with original text reference
 - Suggested corrections
 - Source tracing (heading + block content)
+- HTML is escaped by default; use `--trusted-html` only if inputs are trusted
 
 ## Quick Start Example
 
@@ -116,15 +118,15 @@ python scripts/generate_report.py manifest.jsonl --output audit_report.html
 ### Dependencies
 
 ```bash
-pip install aspose-words jinja2 requests google-generativeai
+pip install aspose-words jinja2 google-generativeai openai
 ```
 
 **Core Libraries:**
 - `aspose-words`: Professional DOCX parsing with list label extraction
 - `jinja2`: HTML report templating
-- `requests` / `google-generativeai`: LLM API access
+- `google-generativeai` / `openai`: LLM API access
 
-**Recommended LLM:** Gemini 1.5 Pro or GPT-4o
+**Recommended LLM:** Gemini-3-Flash or GPT-5.2
 
 ### Environment Variables
 
@@ -196,8 +198,8 @@ export OPENAI_API_KEY=your_api_key
 ### Handling Large Documents
 
 - Documents are processed block-by-block
-- Progress is saved to manifest.jsonl for resume capability
-- Use `--batch-size` parameter to control LLM request frequency
+- Progress is saved to manifest.jsonl for resume capability (`--resume`)
+- Use `--rate-limit` to control API pacing, and `--start-block` / `--end-block` to chunk runs
 
 ### Customizing Reports
 

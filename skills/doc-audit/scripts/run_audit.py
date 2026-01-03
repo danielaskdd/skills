@@ -10,7 +10,6 @@ import os
 import sys
 import time
 from pathlib import Path
-from typing import Optional
 
 # Try to import LLM libraries
 HAS_GEMINI = False
@@ -190,7 +189,7 @@ Return ONLY the JSON object, no other text."""
     return prompt
 
 
-def audit_block_gemini(block: dict, rules: list, model_name: str = "gemini-1.5-pro") -> dict:
+def audit_block_gemini(block: dict, rules: list, model_name: str = "gemini-3-flash") -> dict:
     """
     Audit a text block using Google Gemini.
 
@@ -220,7 +219,7 @@ def audit_block_gemini(block: dict, rules: list, model_name: str = "gemini-1.5-p
     return result
 
 
-def audit_block_openai(block: dict, rules: list, model_name: str = "gpt-4o") -> dict:
+def audit_block_openai(block: dict, rules: list, model_name: str = "gpt-5.2") -> dict:
     """
     Audit a text block using OpenAI.
 
@@ -317,7 +316,7 @@ def main():
         "--model",
         type=str,
         default="auto",
-        help="LLM model to use: gemini-1.5-pro, gpt-4o, or auto (default: auto)"
+        help="LLM model to use: gemini-3-flash, gpt-5.2, or auto (default: auto)"
     )
     parser.add_argument(
         "--rate-limit",
@@ -350,6 +349,12 @@ def main():
 
     args = parser.parse_args()
 
+    # Validate input format (JSON/JSONL blocks only)
+    doc_path = Path(args.document)
+    if doc_path.suffix.lower() not in {'.json', '.jsonl'}:
+        print("Error: --document must be a JSON/JSONL blocks file (use parse_document.py first).", file=sys.stderr)
+        sys.exit(1)
+
     # Check for LLM availability
     if not args.dry_run:
         if not HAS_GEMINI and not HAS_OPENAI:
@@ -361,16 +366,14 @@ def main():
 
     # Determine which model to use
     use_gemini = False
-    use_openai = False
     model_name = args.model
 
     if model_name == "auto":
         if HAS_GEMINI and os.getenv("GOOGLE_API_KEY"):
             use_gemini = True
-            model_name = "gemini-1.5-pro"
+            model_name = "gemini-3-flash"
         elif HAS_OPENAI and os.getenv("OPENAI_API_KEY"):
-            use_openai = True
-            model_name = "gpt-4o"
+            model_name = "gpt-5.2"
         else:
             print("Error: No API key found. Set GOOGLE_API_KEY or OPENAI_API_KEY", file=sys.stderr)
             sys.exit(1)
@@ -384,7 +387,6 @@ def main():
         if not HAS_OPENAI:
             print("Error: openai not installed", file=sys.stderr)
             sys.exit(1)
-        use_openai = True
 
     if use_gemini:
         genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))

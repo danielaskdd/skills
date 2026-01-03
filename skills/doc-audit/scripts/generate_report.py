@@ -5,8 +5,8 @@ ABOUTME: Includes statistics, issue details, and source tracing
 """
 
 import argparse
+import html
 import json
-import os
 import sys
 from collections import Counter
 from datetime import datetime
@@ -14,9 +14,9 @@ from pathlib import Path
 from typing import Optional
 
 try:
-    from jinja2 import Template
+    from jinja2 import Environment
 except ImportError:
-    Template = None
+    Environment = None
 
 
 # Default HTML template (used if no custom template provided)
@@ -445,7 +445,7 @@ def generate_report_data(manifest: list) -> dict:
     }
 
 
-def render_report(data: dict, template_path: Optional[str] = None) -> str:
+def render_report(data: dict, template_path: Optional[str] = None, trusted_html: bool = False) -> str:
     """
     Render HTML report from data.
 
@@ -456,9 +456,9 @@ def render_report(data: dict, template_path: Optional[str] = None) -> str:
     Returns:
         Rendered HTML string
     """
-    if Template is None:
+    if Environment is None:
         # Fallback without Jinja2
-        return render_report_simple(data)
+        return render_report_simple(data, trusted_html=trusted_html)
 
     # Load template
     if template_path and Path(template_path).exists():
@@ -466,11 +466,12 @@ def render_report(data: dict, template_path: Optional[str] = None) -> str:
     else:
         template_str = DEFAULT_TEMPLATE
 
-    template = Template(template_str)
+    env = Environment(autoescape=not trusted_html)
+    template = env.from_string(template_str)
     return template.render(**data)
 
 
-def render_report_simple(data: dict) -> str:
+def render_report_simple(data: dict, trusted_html: bool = False) -> str:
     """
     Render a simple HTML report without Jinja2.
 
@@ -480,15 +481,26 @@ def render_report_simple(data: dict) -> str:
     Returns:
         Rendered HTML string
     """
+    def maybe_escape(value: str) -> str:
+        if trusted_html:
+            return value
+        return html.escape(value, quote=True)
+
     violations_html = ""
     for v in data['violations']:
+        heading = maybe_escape(str(v['heading']))
+        issue_type = maybe_escape(str(v['issue_type']))
+        severity = maybe_escape(str(v['severity']))
+        violation_reason = maybe_escape(str(v['violation_reason']))
+        content = maybe_escape(str(v['content'])[:200])
+        suggestion = maybe_escape(str(v['suggestion']))
         violations_html += f"""
         <div style="border: 1px solid #ddd; padding: 15px; margin: 10px 0; border-left: 4px solid {'#dc2626' if v['severity'] == 'high' else '#d97706'};">
-            <h4>{v['heading']}</h4>
-            <p><strong>Type:</strong> {v['issue_type']} | <strong>Severity:</strong> {v['severity']}</p>
-            <p><strong>Reason:</strong> {v['violation_reason']}</p>
-            <p><strong>Source:</strong> {v['content'][:200]}...</p>
-            {f"<p><strong>Suggestion:</strong> {v['suggestion']}</p>" if v['suggestion'] else ""}
+            <h4>{heading}</h4>
+            <p><strong>Type:</strong> {issue_type} | <strong>Severity:</strong> {severity}</p>
+            <p><strong>Reason:</strong> {violation_reason}</p>
+            <p><strong>Source:</strong> {content}...</p>
+            {f"<p><strong>Suggestion:</strong> {suggestion}</p>" if v['suggestion'] else ""}
         </div>
         """
 
@@ -537,6 +549,11 @@ def main():
         help="Path to custom Jinja2 HTML template"
     )
     parser.add_argument(
+        "--trusted-html",
+        action="store_true",
+        help="Render report without HTML escaping (only for trusted inputs)"
+    )
+    parser.add_argument(
         "--json",
         action="store_true",
         help="Also output report data as JSON"
@@ -560,7 +577,7 @@ def main():
     print(f"Found {data['violation_count']} issues")
 
     # Render HTML
-    html = render_report(data, args.template)
+    html = render_report(data, args.template, trusted_html=args.trusted_html)
 
     # Save HTML
     output_path = Path(args.output)

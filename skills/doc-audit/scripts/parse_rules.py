@@ -118,7 +118,7 @@ Input criteria:
 Return ONLY a valid JSON array of rule objects. No explanation, just the JSON array.
 """
             response = client.chat.completions.create(
-                model="gpt-4o",
+                model="gpt-5.2",
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.2
             )
