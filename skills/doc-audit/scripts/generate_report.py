@@ -20,305 +20,6 @@ except ImportError:
     sys.exit(1)
 
 
-# Default HTML template (used if no custom template provided)
-DEFAULT_TEMPLATE = """<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Document Audit Report</title>
-    <style>
-        :root {
-            --primary: #2563eb;
-            --danger: #dc2626;
-            --warning: #d97706;
-            --success: #16a34a;
-            --gray-50: #f9fafb;
-            --gray-100: #f3f4f6;
-            --gray-200: #e5e7eb;
-            --gray-600: #4b5563;
-            --gray-800: #1f2937;
-        }
-
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-        }
-
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            line-height: 1.6;
-            color: var(--gray-800);
-            background: var(--gray-50);
-            padding: 2rem;
-        }
-
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-        }
-
-        header {
-            background: white;
-            padding: 2rem;
-            border-radius: 8px;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-            margin-bottom: 2rem;
-        }
-
-        h1 {
-            color: var(--gray-800);
-            margin-bottom: 0.5rem;
-        }
-
-        .meta {
-            color: var(--gray-600);
-            font-size: 0.875rem;
-        }
-
-        .stats {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 1rem;
-            margin-bottom: 2rem;
-        }
-
-        .stat-card {
-            background: white;
-            padding: 1.5rem;
-            border-radius: 8px;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-        }
-
-        .stat-card h3 {
-            font-size: 0.75rem;
-            text-transform: uppercase;
-            color: var(--gray-600);
-            margin-bottom: 0.5rem;
-        }
-
-        .stat-card .value {
-            font-size: 2rem;
-            font-weight: bold;
-        }
-
-        .stat-card.danger .value { color: var(--danger); }
-        .stat-card.warning .value { color: var(--warning); }
-        .stat-card.success .value { color: var(--success); }
-
-        .section {
-            background: white;
-            padding: 2rem;
-            border-radius: 8px;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-            margin-bottom: 2rem;
-        }
-
-        .section h2 {
-            margin-bottom: 1rem;
-            padding-bottom: 0.5rem;
-            border-bottom: 1px solid var(--gray-200);
-        }
-
-        .issue {
-            border: 1px solid var(--gray-200);
-            border-radius: 8px;
-            padding: 1.5rem;
-            margin-bottom: 1rem;
-        }
-
-        .issue.high {
-            border-left: 4px solid var(--danger);
-        }
-
-        .issue.medium {
-            border-left: 4px solid var(--warning);
-        }
-
-        .issue.low {
-            border-left: 4px solid var(--success);
-        }
-
-        .issue-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-start;
-            margin-bottom: 1rem;
-        }
-
-        .issue-title {
-            font-weight: 600;
-            color: var(--gray-800);
-        }
-
-        .badge {
-            display: inline-block;
-            padding: 0.25rem 0.75rem;
-            border-radius: 9999px;
-            font-size: 0.75rem;
-            font-weight: 500;
-        }
-
-        .badge.high { background: #fee2e2; color: var(--danger); }
-        .badge.medium { background: #fef3c7; color: var(--warning); }
-        .badge.low { background: #dcfce7; color: var(--success); }
-        .badge.category { background: var(--gray-100); color: var(--gray-600); }
-
-        .issue-content {
-            margin-bottom: 1rem;
-        }
-
-        .issue-content label {
-            font-size: 0.75rem;
-            text-transform: uppercase;
-            color: var(--gray-600);
-            display: block;
-            margin-bottom: 0.25rem;
-        }
-
-        .issue-content p {
-            margin-bottom: 1rem;
-        }
-
-        .source-text {
-            background: var(--gray-100);
-            padding: 1rem;
-            border-radius: 4px;
-            font-family: monospace;
-            font-size: 0.875rem;
-            white-space: pre-wrap;
-            word-break: break-word;
-        }
-
-        .suggestion {
-            background: #ecfdf5;
-            padding: 1rem;
-            border-radius: 4px;
-            border: 1px solid #a7f3d0;
-        }
-
-        .distribution-chart {
-            display: flex;
-            gap: 1rem;
-            flex-wrap: wrap;
-        }
-
-        .chart-item {
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-        }
-
-        .chart-bar {
-            width: 100px;
-            height: 20px;
-            background: var(--gray-200);
-            border-radius: 4px;
-            overflow: hidden;
-        }
-
-        .chart-fill {
-            height: 100%;
-            background: var(--primary);
-        }
-
-        footer {
-            text-align: center;
-            color: var(--gray-600);
-            font-size: 0.875rem;
-            padding: 2rem;
-        }
-
-        @media print {
-            body { padding: 0; background: white; }
-            .container { max-width: none; }
-            .section { box-shadow: none; border: 1px solid var(--gray-200); }
-        }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <header>
-            <h1>Document Audit Report</h1>
-            <p class="meta">Generated: {{ generated_at }} | Total Blocks: {{ total_blocks }}</p>
-        </header>
-
-        <div class="stats">
-            <div class="stat-card {{ 'danger' if violation_count > 0 else 'success' }}">
-                <h3>Total Issues</h3>
-                <div class="value">{{ violation_count }}</div>
-            </div>
-            <div class="stat-card">
-                <h3>Blocks Audited</h3>
-                <div class="value">{{ total_blocks }}</div>
-            </div>
-            <div class="stat-card danger">
-                <h3>High Severity</h3>
-                <div class="value">{{ severity_counts.get('high', 0) }}</div>
-            </div>
-            <div class="stat-card warning">
-                <h3>Medium Severity</h3>
-                <div class="value">{{ severity_counts.get('medium', 0) }}</div>
-            </div>
-        </div>
-
-        <div class="section">
-            <h2>Issue Distribution by Category</h2>
-            <div class="distribution-chart">
-                {% for category, count in category_counts.items() %}
-                <div class="chart-item">
-                    <span class="badge category">{{ category }}</span>
-                    <div class="chart-bar">
-                        <div class="chart-fill" style="width: {{ (count / max_category_count * 100) if max_category_count > 0 else 0 }}%"></div>
-                    </div>
-                    <span>{{ count }}</span>
-                </div>
-                {% endfor %}
-            </div>
-        </div>
-
-        <div class="section">
-            <h2>Issues Found ({{ violation_count }})</h2>
-            {% if violations %}
-                {% for v in violations %}
-                <div class="issue {{ v.severity }}">
-                    <div class="issue-header">
-                        <div>
-                            <span class="issue-title">{{ v.heading }}</span>
-                            <span class="badge category">{{ v.issue_type }}</span>
-                        </div>
-                        <span class="badge {{ v.severity }}">{{ v.severity|upper }}</span>
-                    </div>
-                    <div class="issue-content">
-                        <label>Source Text</label>
-                        <div class="source-text">{{ v.content[:500] }}{% if v.content|length > 500 %}...{% endif %}</div>
-                    </div>
-                    <div class="issue-content">
-                        <label>Rule Violated</label>
-                        <p><strong>{{ v.rule_id }}</strong>: {{ v.violation_reason }}</p>
-                    </div>
-                    {% if v.suggestion %}
-                    <div class="issue-content">
-                        <label>Suggested Correction</label>
-                        <div class="suggestion">{{ v.suggestion }}</div>
-                    </div>
-                    {% endif %}
-                </div>
-                {% endfor %}
-            {% else %}
-                <p style="color: var(--success); font-weight: 500;">No issues found. Document passed all audit rules.</p>
-            {% endif %}
-        </div>
-
-        <footer>
-            <p>Generated by Document Audit Skill v1.0.0</p>
-        </footer>
-    </div>
-</body>
-</html>"""
-
-
 def load_manifest(file_path: str) -> list:
     """
     Load audit results from manifest JSONL file.
@@ -461,7 +162,8 @@ def render_report(data: dict, template_path: Optional[str] = None, trusted_html:
 
     Args:
         data: Report data dictionary
-        template_path: Optional path to custom template
+        template_path: Path to Jinja2 template file (required)
+        trusted_html: If True, disable HTML escaping (use only for trusted inputs)
 
     Returns:
         Rendered HTML string
@@ -470,11 +172,13 @@ def render_report(data: dict, template_path: Optional[str] = None, trusted_html:
         # Fallback without Jinja2
         return render_report_simple(data, trusted_html=trusted_html)
 
-    # Load template
-    if template_path and Path(template_path).exists():
-        template_str = Path(template_path).read_text(encoding='utf-8')
-    else:
-        template_str = DEFAULT_TEMPLATE
+    # Load template (required)
+    if not template_path:
+        raise ValueError("Template path is required.")
+    template_file = Path(template_path)
+    if not template_file.exists():
+        raise FileNotFoundError(f"Template file not found: {template_path}")
+    template_str = template_file.read_text(encoding='utf-8')
 
     env = Environment(autoescape=not trusted_html)
     template = env.from_string(template_str)
@@ -556,7 +260,8 @@ def main():
     parser.add_argument(
         "--template", "-t",
         type=str,
-        help="Path to custom Jinja2 HTML template"
+        required=True,
+        help="Path to Jinja2 HTML template (required)"
     )
     parser.add_argument(
         "--trusted-html",
@@ -575,6 +280,11 @@ def main():
     manifest_path = Path(args.manifest)
     if not manifest_path.exists():
         print(f"Error: Manifest file not found: {args.manifest}", file=sys.stderr)
+        sys.exit(1)
+
+    template_path = Path(args.template)
+    if not template_path.exists():
+        print(f"Error: Template file not found: {args.template}", file=sys.stderr)
         sys.exit(1)
 
     # Load and process manifest

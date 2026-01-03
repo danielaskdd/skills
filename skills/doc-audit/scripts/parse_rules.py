@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 ABOUTME: Parses natural language audit criteria into structured JSON rules
-ABOUTME: Supports LLM-based parsing for complex rules or simple keyword extraction
+ABOUTME: Supports LLM-based merging of base rules with user requirements
 """
 
 import argparse
@@ -11,49 +11,79 @@ import sys
 from pathlib import Path
 from typing import Optional
 
-# Default audit rules that are always included
-DEFAULT_RULES = [
-    {
-        "id": "R001",
-        "description": "Check for typos and spelling errors",
-        "severity": "medium",
-        "category": "grammar",
-        "keywords": []
+
+# JSON Schema for rule validation and LLM structured output
+RULE_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "id": {"type": "string", "description": "Unique identifier (R001, R002, ...)"},
+        "description": {"type": "string", "description": "Clear description of what to check"},
+        "severity": {"type": "string", "enum": ["high", "medium", "low"]},
+        "category": {
+            "type": "string",
+            "description": "Rule category"
+        },
+        "examples": {
+            "type": "object",
+            "properties": {
+                "violation": {"type": "string"},
+                "correction": {"type": "string"}
+            }
+        }
     },
-    {
-        "id": "R002",
-        "description": "Check for grammar errors and sentence structure issues",
-        "severity": "medium",
-        "category": "grammar",
-        "keywords": []
-    },
-    {
-        "id": "R003",
-        "description": "Check for unclear references (ambiguous pronouns, vague terms like 'it', 'this', 'that' without clear antecedents)",
-        "severity": "high",
-        "category": "clarity",
-        "keywords": ["it", "this", "that", "they", "those", "these"]
-    },
-    {
-        "id": "R004",
-        "description": "Check for logical inconsistencies (contradictions between stated facts and conclusions)",
-        "severity": "high",
-        "category": "logic",
-        "keywords": []
-    }
-]
+    "required": ["id", "description", "severity", "category"]
+}
+
+RULES_ARRAY_SCHEMA = {
+    "type": "array",
+    "items": RULE_SCHEMA
+}
 
 
-def parse_rules_with_llm(input_text: str, api_key: Optional[str] = None, start_id: int = 5) -> list:
+def load_base_rules(base_rules_path: Optional[str] = None) -> list:
     """
-    Use LLM to parse natural language audit criteria into structured rules.
+    Load base rules from file.
+    
+    Args:
+        base_rules_path: Path to base rules JSON file. If None, auto-detects default_rules.json
+    
+    Returns:
+        List of rule dictionaries
+    """
+    if base_rules_path is None:
+        # Auto-detect default_rules.json
+        script_dir = Path(__file__).parent
+        base_rules_path = script_dir.parent / "assets" / "default_rules.json"
+    
+    path = Path(base_rules_path)
+    if not path.exists():
+        print(f"Warning: Base rules file not found: {base_rules_path}", file=sys.stderr)
+        return []
+    
+    with open(path, 'r', encoding='utf-8') as f:
+        data = json.load(f)
+    
+    # Handle both direct array and wrapped format
+    if isinstance(data, list):
+        return data
+    elif isinstance(data, dict) and 'rules' in data:
+        return data['rules']
+    else:
+        print(f"Warning: Unknown rules format in {base_rules_path}", file=sys.stderr)
+        return []
+
+
+def merge_rules_with_llm(base_rules: list, input_text: str, api_key: Optional[str] = None) -> list:
+    """
+    Use LLM to intelligently merge base rules with user requirements.
 
     Args:
-        input_text: Natural language description of audit criteria
+        base_rules: Existing base rules (from default or previous iteration)
+        input_text: User's new requirements or modification requests
         api_key: API key for LLM service (Gemini or OpenAI)
 
     Returns:
-        List of structured rule dictionaries
+        Complete merged list of structured rule dictionaries
     """
     # Try Gemini first
     google_key = api_key or os.getenv("GOOGLE_API_KEY")
@@ -63,38 +93,47 @@ def parse_rules_with_llm(input_text: str, api_key: Optional[str] = None, start_i
             genai.configure(api_key=google_key)
             model = genai.GenerativeModel("gemini-3-flash")
 
-            prompt = f"""You are an audit rule parser. Convert the following natural language audit criteria into structured JSON rules.
+            prompt = f"""You are an audit rule expert. Merge these existing rules with user's new requirements.
 
-Each rule should have:
-- id: A unique identifier (e.g., "R005", "R006", ...)
-- description: Clear description of what to check
-- severity: "high", "medium", or "low"
-- category: One of: "grammar", "clarity", "logic", "compliance", "format", "semantic_risk", "other"
-- keywords: List of keywords that might indicate a violation (can be empty)
+EXISTING BASE RULES:
+{json.dumps(base_rules, indent=2, ensure_ascii=False)}
 
-Input criteria:
+USER'S REQUIREMENTS/MODIFICATIONS:
 {input_text}
 
-Return ONLY a valid JSON array of rule objects. No explanation, just the JSON array.
+Task: Create a unified ruleset by intelligently merging:
+1. Preserve unique existing rules that don't conflict with user requirements
+2. If user requirement overlaps with existing rule, merge or update as appropriate
+3. Add any new unique requirements from user input
+4. If user requests modifications to specific rules (e.g., "change R007 to HIGH"), update them
+5. Maintain sequential rule IDs starting from R001
+6. Ensure no redundancy or duplication
+
+Each rule must have:
+- id: Unique identifier (R001, R002, ...)
+- description: Clear description of what to check
+- severity: "high", "medium", or "low"
+- category: Suggested values: "grammar", "clarity", "logic", "compliance", "format", "semantic", "other"
+  You may also use custom categories if they better fit the rule type.
+- examples: Optional object with "violation" and "correction" examples
+
+Return a valid JSON array of the complete merged rules.
 """
-            response = model.generate_content(prompt)
-            response_text = response.text.strip()
-
-            # Clean up response if needed
-            if response_text.startswith("```json"):
-                response_text = response_text[7:]
-            if response_text.startswith("```"):
-                response_text = response_text[3:]
-            if response_text.endswith("```"):
-                response_text = response_text[:-3]
-
-            custom_rules = json.loads(response_text.strip())
-            return custom_rules
+            response = model.generate_content(
+                prompt,
+                generation_config=genai.GenerationConfig(
+                    response_mime_type="application/json",
+                    response_schema=RULES_ARRAY_SCHEMA
+                )
+            )
+            # With structured output, response is guaranteed to be valid JSON
+            merged_rules = json.loads(response.text)
+            return merged_rules
 
         except ImportError:
             print("Warning: google-generativeai not installed. Trying OpenAI instead.", file=sys.stderr)
         except Exception as e:
-            print(f"Warning: LLM parsing failed: {e}. Trying fallback.", file=sys.stderr)
+            print(f"Warning: LLM merging failed: {e}. Trying fallback.", file=sys.stderr)
 
     # Try OpenAI as fallback
     openai_key = api_key or os.getenv("OPENAI_API_KEY")
@@ -103,127 +142,64 @@ Return ONLY a valid JSON array of rule objects. No explanation, just the JSON ar
             import openai
             client = openai.OpenAI(api_key=openai_key)
 
-            prompt = f"""You are an audit rule parser. Convert the following natural language audit criteria into structured JSON rules.
+            prompt = f"""You are an audit rule expert. Merge these existing rules with user's new requirements.
 
-Each rule should have:
-- id: A unique identifier (e.g., "R005", "R006", ...)
-- description: Clear description of what to check
-- severity: "high", "medium", or "low"
-- category: One of: "grammar", "clarity", "logic", "compliance", "format", "semantic_risk", "other"
-- keywords: List of keywords that might indicate a violation (can be empty)
+EXISTING BASE RULES:
+{json.dumps(base_rules, indent=2, ensure_ascii=False)}
 
-Input criteria:
+USER'S REQUIREMENTS/MODIFICATIONS:
 {input_text}
 
-Return ONLY a valid JSON array of rule objects. No explanation, just the JSON array.
+Task: Create a unified ruleset by intelligently merging:
+1. Preserve unique existing rules that don't conflict with user requirements
+2. If user requirement overlaps with existing rule, merge or update as appropriate
+3. Add any new unique requirements from user input
+4. If user requests modifications to specific rules (e.g., "change R007 to HIGH"), update them
+5. Maintain sequential rule IDs starting from R001
+6. Ensure no redundancy or duplication
+
+Each rule must have:
+- id: Unique identifier (R001, R002, ...)
+- description: Clear description of what to check
+- severity: "high", "medium", or "low"
+- category: Suggested values: "grammar", "clarity", "logic", "compliance", "format", "semantic", "other"
+  You may also use custom categories if they better fit the rule type.
+- examples: Optional object with "violation" and "correction" examples
+
+Return a valid JSON array of the complete merged rules.
 """
             response = client.chat.completions.create(
                 model="gpt-5.2",
                 messages=[{"role": "user", "content": prompt}],
-                temperature=0.2
+                response_format={
+                    "type": "json_schema",
+                    "json_schema": {
+                        "name": "audit_rules_array",
+                        "strict": True,
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "rules": RULES_ARRAY_SCHEMA
+                            },
+                            "required": ["rules"],
+                            "additionalProperties": False
+                        }
+                    }
+                }
             )
-            response_text = response.choices[0].message.content.strip()
-
-            # Clean up response
-            if response_text.startswith("```json"):
-                response_text = response_text[7:]
-            if response_text.startswith("```"):
-                response_text = response_text[3:]
-            if response_text.endswith("```"):
-                response_text = response_text[:-3]
-
-            custom_rules = json.loads(response_text.strip())
-            return custom_rules
+            # With structured output, response is guaranteed to be valid JSON
+            response_data = json.loads(response.choices[0].message.content)
+            merged_rules = response_data["rules"]
+            return merged_rules
 
         except ImportError:
-            print("Warning: openai not installed. Trying simple parsing.", file=sys.stderr)
+            print("Error: openai not installed.", file=sys.stderr)
         except Exception as e:
-            print(f"Warning: LLM parsing failed: {e}. Using simple parsing.", file=sys.stderr)
+            print(f"Error: LLM merging failed: {e}", file=sys.stderr)
 
-    # Fallback: Simple keyword-based parsing
-    return parse_rules_simple(input_text, start_id=start_id)
-
-
-def parse_rules_simple(input_text: str, start_id: int = 5) -> list:
-    """
-    Simple rule parsing without LLM.
-    Extracts keywords and creates basic rules from input text.
-
-    Args:
-        input_text: Natural language description of audit criteria
-
-    Returns:
-        List of structured rule dictionaries
-    """
-    rules = []
-    lines = input_text.strip().split('\n')
-
-    rule_id = start_id
-
-    for line in lines:
-        line = line.strip()
-        if not line:
-            continue
-
-        # Remove common prefixes
-        for prefix in ["- ", "* ", "• ", "check for ", "verify ", "ensure "]:
-            if line.lower().startswith(prefix):
-                line = line[len(prefix):]
-
-        # Determine severity based on keywords
-        severity = "medium"
-        if any(word in line.lower() for word in ["critical", "must", "required", "mandatory"]):
-            severity = "high"
-        elif any(word in line.lower() for word in ["optional", "minor", "suggest"]):
-            severity = "low"
-
-        # Determine category
-        category = "other"
-        if any(word in line.lower() for word in ["spell", "typo", "grammar"]):
-            category = "grammar"
-        elif any(word in line.lower() for word in ["unclear", "ambiguous", "vague"]):
-            category = "clarity"
-        elif any(word in line.lower() for word in ["logic", "contradict", "inconsisten"]):
-            category = "logic"
-        elif any(word in line.lower() for word in ["compli", "legal", "regulat"]):
-            category = "compliance"
-        elif any(word in line.lower() for word in ["format", "style", "layout"]):
-            category = "format"
-        elif any(word in line.lower() for word in ["amount", "currency", "date", "number"]):
-            category = "semantic_risk"
-
-        rules.append({
-            "id": f"R{rule_id:03d}",
-            "description": line,
-            "severity": severity,
-            "category": category,
-            "keywords": []
-        })
-        rule_id += 1
-
-    return rules
-
-
-def merge_rules(default_rules: list, custom_rules: list) -> list:
-    """
-    Merge default rules with custom rules, avoiding duplicates.
-
-    Args:
-        default_rules: List of default rule dictionaries
-        custom_rules: List of custom rule dictionaries
-
-    Returns:
-        Merged list of rules
-    """
-    all_rules = list(default_rules)
-    existing_descriptions = {r["description"].lower() for r in default_rules}
-
-    for rule in custom_rules:
-        if rule["description"].lower() not in existing_descriptions:
-            all_rules.append(rule)
-            existing_descriptions.add(rule["description"].lower())
-
-    return all_rules
+    # No fallback - LLM is required
+    print("Error: Unable to use LLM for rule merging. Please ensure LLM dependencies are installed.", file=sys.stderr)
+    sys.exit(1)
 
 
 def main():
@@ -233,12 +209,18 @@ def main():
     parser.add_argument(
         "--input", "-i",
         type=str,
-        help="Natural language audit criteria text"
+        help="Natural language audit criteria text or modification requests"
     )
     parser.add_argument(
         "--file", "-f",
         type=str,
         help="File containing audit criteria (one per line or paragraph)"
+    )
+    parser.add_argument(
+        "--base-rules",
+        type=str,
+        default=None,
+        help="Base rules file to merge with (default: auto-detect assets/default_rules.json)"
     )
     parser.add_argument(
         "--output", "-o",
@@ -247,53 +229,55 @@ def main():
         help="Output JSON file path (default: rules.json)"
     )
     parser.add_argument(
-        "--no-defaults",
+        "--no-base",
         action="store_true",
-        help="Don't include default rules"
-    )
-    parser.add_argument(
-        "--llm",
-        action="store_true",
-        help="Use LLM for advanced parsing (requires API key)"
+        help="Don't load base rules (start from scratch)"
     )
     parser.add_argument(
         "--api-key",
         type=str,
-        help="API key for LLM service"
+        help="API key for LLM service (optional, uses environment variables by default)"
     )
 
     args = parser.parse_args()
 
-    if args.llm:
-        google_key = args.api_key or os.getenv("GOOGLE_API_KEY")
-        openai_key = args.api_key or os.getenv("OPENAI_API_KEY")
-        has_gemini = False
-        has_openai = False
-        try:
-            import google.generativeai  # noqa: F401
-            has_gemini = True
-        except ImportError:
-            pass
-        try:
-            import openai  # noqa: F401
-            has_openai = True
-        except ImportError:
-            pass
+    # Validate LLM setup (always required now)
+    google_key = args.api_key or os.getenv("GOOGLE_API_KEY")
+    openai_key = args.api_key or os.getenv("OPENAI_API_KEY")
+    has_gemini = False
+    has_openai = False
+    try:
+        import google.generativeai  # noqa: F401
+        has_gemini = True
+    except ImportError:
+        pass
+    try:
+        import openai  # noqa: F401
+        has_openai = True
+    except ImportError:
+        pass
 
-        usable_gemini = bool(google_key and has_gemini)
-        usable_openai = bool(openai_key and has_openai)
+    usable_gemini = bool(google_key and has_gemini)
+    usable_openai = bool(openai_key and has_openai)
 
-        if not usable_gemini and not usable_openai:
-            if not (google_key or openai_key):
-                print("Error: --llm requires GOOGLE_API_KEY or OPENAI_API_KEY (or --api-key).", file=sys.stderr)
-            else:
-                print("Error: No supported LLM client installed.", file=sys.stderr)
-            print("Install one of:", file=sys.stderr)
-            print("  pip install google-generativeai", file=sys.stderr)
-            print("  pip install openai", file=sys.stderr)
-            sys.exit(1)
+    if not usable_gemini and not usable_openai:
+        if not (google_key or openai_key):
+            print("Error: LLM API key required. Set GOOGLE_API_KEY or OPENAI_API_KEY (or use --api-key).", file=sys.stderr)
+        else:
+            print("Error: No supported LLM client installed.", file=sys.stderr)
+        print("Install one of:", file=sys.stderr)
+        print("  pip install google-generativeai", file=sys.stderr)
+        print("  pip install openai", file=sys.stderr)
+        sys.exit(1)
 
-    # Get input text
+    # Load base rules
+    base_rules = []
+    if not args.no_base:
+        base_rules = load_base_rules(args.base_rules)
+        if base_rules:
+            print(f"Loaded {len(base_rules)} base rules")
+
+    # Get user input text
     input_text = ""
     if args.input:
         input_text = args.input
@@ -304,20 +288,13 @@ def main():
             sys.exit(1)
         input_text = file_path.read_text(encoding="utf-8")
 
-    # Parse custom rules
-    custom_rules = []
-    if input_text:
-        start_id = 1 if args.no_defaults else 5
-        if args.llm:
-            custom_rules = parse_rules_with_llm(input_text, args.api_key, start_id=start_id)
-        else:
-            custom_rules = parse_rules_simple(input_text, start_id=start_id)
-
-    # Merge with defaults
-    if args.no_defaults:
-        all_rules = custom_rules
+    # Generate or merge rules (always uses LLM)
+    if not input_text:
+        # No input text, just use base rules
+        all_rules = base_rules
     else:
-        all_rules = merge_rules(DEFAULT_RULES, custom_rules)
+        # Use LLM to merge base rules with user requirements
+        all_rules = merge_rules_with_llm(base_rules, input_text, args.api_key)
 
     # Output
     output_data = {
@@ -329,7 +306,7 @@ def main():
     output_path = Path(args.output)
     output_path.write_text(json.dumps(output_data, indent=2, ensure_ascii=False), encoding="utf-8")
 
-    print(f"Generated {len(all_rules)} rules:")
+    print(f"\nGenerated {len(all_rules)} rules:")
     for rule in all_rules:
         print(f"  [{rule['id']}] ({rule['severity']}) {rule['description'][:60]}...")
     print(f"\nSaved to: {output_path}")

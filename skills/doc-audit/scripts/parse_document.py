@@ -5,17 +5,38 @@ ABOUTME: Extracts automatic numbering, splits by headings, converts tables to JS
 """
 
 import argparse
+import hashlib
 import json
 import sys
-import uuid
 from pathlib import Path
-from typing import Optional
 
 try:
     import aspose.words as aw
 except ImportError:
     print("Error: aspose-words not installed. Run: pip install aspose-words", file=sys.stderr)
     sys.exit(1)
+
+
+def generate_content_uuid(heading: str, content: str) -> str:
+    """
+    Generate deterministic UUID from heading and content using SHA-256 hash.
+
+    Args:
+        heading: Block heading text
+        content: Block content (text or JSON string for tables)
+
+    Returns:
+        32-character hexadecimal string (deterministic UUID)
+    """
+    # Combine heading and content for hashing
+    if isinstance(content, list):
+        # For tables, convert to JSON string for consistent hashing
+        content_str = json.dumps(content, ensure_ascii=False, sort_keys=True)
+    else:
+        content_str = str(content)
+    
+    combined = f"{heading}|{content_str}"
+    return hashlib.sha256(combined.encode('utf-8')).hexdigest()[:32]
 
 
 def extract_audit_blocks(file_path: str) -> list:
@@ -70,10 +91,11 @@ def extract_audit_blocks(file_path: str) -> list:
                 if is_heading:
                     # Save previous block if it has content
                     if current_content:
+                        content_text = "\n".join(current_content)
                         blocks.append({
-                            "uuid": str(uuid.uuid4()),
+                            "uuid": generate_content_uuid(current_heading, content_text),
                             "heading": current_heading,
-                            "content": "\n".join(current_content),
+                            "content": content_text,
                             "type": "text",
                             "parent_headings": list(current_heading_stack)
                         })
@@ -91,10 +113,11 @@ def extract_audit_blocks(file_path: str) -> list:
             elif node.node_type == aw.NodeType.TABLE:
                 # Save any pending text content
                 if current_content:
+                    content_text = "\n".join(current_content)
                     blocks.append({
-                        "uuid": str(uuid.uuid4()),
+                        "uuid": generate_content_uuid(current_heading, content_text),
                         "heading": current_heading,
-                        "content": "\n".join(current_content),
+                        "content": content_text,
                         "type": "text",
                         "parent_headings": list(current_heading_stack)
                     })
@@ -112,9 +135,10 @@ def extract_audit_blocks(file_path: str) -> list:
                         row_data.append(cell_text)
                     table_data.append(row_data)
 
+                table_heading = f"Table (under: {current_heading})"
                 blocks.append({
-                    "uuid": str(uuid.uuid4()),
-                    "heading": f"Table (under: {current_heading})",
+                    "uuid": generate_content_uuid(table_heading, table_data),
+                    "heading": table_heading,
                     "content": table_data,
                     "type": "table",
                     "parent_headings": list(current_heading_stack)
@@ -122,10 +146,11 @@ def extract_audit_blocks(file_path: str) -> list:
 
     # Don't forget the last block
     if current_content:
+        content_text = "\n".join(current_content)
         blocks.append({
-            "uuid": str(uuid.uuid4()),
+            "uuid": generate_content_uuid(current_heading, content_text),
             "heading": current_heading,
-            "content": "\n".join(current_content),
+            "content": content_text,
             "type": "text",
             "parent_headings": list(current_heading_stack)
         })
@@ -169,6 +194,7 @@ def format_table_for_display(table_data: list) -> str:
 def save_blocks_jsonl(blocks: list, output_path: str):
     """
     Save blocks to JSONL format (one JSON object per line).
+    Also removes existing manifest.jsonl to ensure clean resume state.
 
     Args:
         blocks: List of block dictionaries
@@ -177,11 +203,18 @@ def save_blocks_jsonl(blocks: list, output_path: str):
     with open(output_path, 'w', encoding='utf-8') as f:
         for block in blocks:
             f.write(json.dumps(block, ensure_ascii=False) + '\n')
+    
+    # Clean up old manifest.jsonl to prevent UUID mismatch in resume mode
+    manifest_path = Path(output_path).parent / "manifest.jsonl"
+    if manifest_path.exists():
+        manifest_path.unlink()
+        print(f"Removed existing manifest: {manifest_path}")
 
 
 def save_blocks_json(blocks: list, output_path: str):
     """
     Save blocks to regular JSON format.
+    Also removes existing manifest.jsonl to ensure clean resume state.
 
     Args:
         blocks: List of block dictionaries
@@ -192,6 +225,12 @@ def save_blocks_json(blocks: list, output_path: str):
             "total_blocks": len(blocks),
             "blocks": blocks
         }, f, indent=2, ensure_ascii=False)
+    
+    # Clean up old manifest.jsonl to prevent UUID mismatch in resume mode
+    manifest_path = Path(output_path).parent / "manifest.jsonl"
+    if manifest_path.exists():
+        manifest_path.unlink()
+        print(f"Removed existing manifest: {manifest_path}")
 
 
 def main():

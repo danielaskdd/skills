@@ -20,31 +20,97 @@ Use this skill when you need to:
 
 ## Core Workflow
 
+The doc-audit skill supports two workflow paths depending on whether user has specific audit requirements:
+
+### Phase 1: Rule Selection (Optional)
+
+**Decision Point:** Does user specify custom audit requirements?
+
+**Path A: Use Default Rules (Simple)**
+- User only requests "audit [filename]" without specific requirements
+- **Skip rule generation** - use `assets/default_rules.json` directly
+- Proceed immediately to Phase 2
+
+**Path B: Custom Rules (Iterative)**
+1. **Analyze Requirements** - Agent converts user's needs into clear criteria
+2. **Generate Rules** - Call `parse_rules.py` to merge base rules with requirements
+3. **User Confirmation** - Present generated rules for review
+4. **Iterate if Needed** - Refine based on feedback, return to step 3
+
+### Phase 2: Document Audit
+
+5. **Parse Document** - Extract text blocks from .docx with proper numbering (Aspose)
+6. **Execute Audit** - LLM audits each text block against rules independently
+7. **Generate Report** - Create HTML report with findings and source tracing
+
 ```
-1. Parse Rules     → Convert natural language audit criteria to structured rules
-2. Parse Document  → Extract text blocks from .docx with proper numbering (Aspose)
-3. Execute Audit   → LLM audits each text block against rules independently
-4. Generate Report → Create HTML report with findings and source tracing
+Path A (Default Rules):
+User: "Audit file.docx" → Parse Document → Audit (default rules) → Report
+
+Path B (Custom Rules):
+User: "Check for X, Y, Z" → Generate Rules → Present ───┐
+                              ↑                         │
+                              └─ (Modify) ←─ Review ────┘
+                                               │
+                                          (User Approves)
+                                               ↓
+                                          Parse Document → Audit → Report
 ```
 
 ## Available Tools
 
-### 1. Parse Audit Rules
+### 1. Parse Audit Rules (Iterative)
 
-Convert natural language audit criteria into structured JSON rules:
+Intelligently merge base rules with user requirements using LLM (always enabled):
 
 ```bash
-python scripts/parse_rules.py --input "your audit criteria text"
-python scripts/parse_rules.py --file rules.txt
+# Initial generation (uses default_rules.json automatically)
+python scripts/parse_rules.py \
+  --input "Check for ambiguous payment terms and missing signatures" \
+  --output contract_rules.json
+
+# Iteration 1: Refine based on user feedback
+python scripts/parse_rules.py \
+  --base-rules contract_rules.json \
+  --input "Change R007 severity to HIGH, add rule for checking witness requirements" \
+  --output contract_rules.json
+
+# Iteration 2: Further refinement
+python scripts/parse_rules.py \
+  --base-rules contract_rules.json \
+  --input "Remove R009, make signature rule more specific" \
+  --output contract_rules.json
+
+# Read requirements from file
+python scripts/parse_rules.py \
+  --file requirements.txt \
+  --output contract_rules.json
 ```
 
-**Default Rules Include:**
-- Typos and spelling errors
-- Grammar errors
-- Unclear references (ambiguous pronouns, vague terms)
-- Logical inconsistencies (contradictions between facts and conclusions)
+**Key Parameters:**
+- `--input <text>`: User requirements or modification requests (required unless using --file). If both `--input` and `--file` are omitted, the script outputs base rules unchanged (LLM deps/API key are still required by current validation).
+- `--file <path>`: Read requirements from file instead of --input
+- `--base-rules <file>`: Base rules to merge with (default: auto-detects `assets/default_rules.json`)
+- `--output <file>`: Output rules file (default: rules.json)
+- `--no-base`: Start from scratch without base rules
+- `--api-key <key>`: LLM API key (optional, uses GOOGLE_API_KEY or OPENAI_API_KEY by default)
 
-**Returns:** JSON with rule ID, description, severity level, and category
+**LLM Requirement:**
+- Requires `google-generativeai` or `openai` package installed
+- Requires `GOOGLE_API_KEY` or `OPENAI_API_KEY` environment variable set
+
+**Default Rules (10 total):**
+- R001-R002: Grammar and spelling
+- R003-R004: Clarity and logic
+- R005-R007: Monetary amounts, currency, and time references
+- R008-R010: Technical terms, passive voice, double negatives
+
+**Workflow:**
+1. First call: Merges default rules + user requirements
+2. Subsequent calls: Merges previous output + user refinements
+3. LLM intelligently handles overlaps, updates, and additions
+
+**Returns:** Complete unified JSON ruleset with rule ID, description, severity, category, and examples
 
 ### 2. Parse Document
 
@@ -86,9 +152,10 @@ python scripts/run_audit.py --document blocks.jsonl --rules rules.json --model g
 Create HTML audit report from audit manifest:
 
 ```bash
-python scripts/generate_report.py manifest.jsonl --output report.html
-python scripts/generate_report.py manifest.jsonl --output report.html --template custom_template.html
+python scripts/generate_report.py manifest.jsonl --output report.html --template assets/report_template.html
 ```
+
+**Important:** The `--template` parameter is **required**. Use `assets/report_template.html` or provide your own custom Jinja2 template.
 
 **Features:**
 - Total issue count and distribution by category/severity
@@ -97,21 +164,73 @@ python scripts/generate_report.py manifest.jsonl --output report.html --template
 - Source tracing (heading + block content)
 - HTML is escaped by default; use `--trusted-html` only if inputs are trusted
 
-## Quick Start Example
+## Quick Start Examples
+
+### Path A: Using Default Rules (No Custom Requirements)
+
+When user only requests "audit [filename]" without specific requirements:
 
 ```bash
-# 1. Parse your audit rules (or use defaults)
-python scripts/parse_rules.py --input "Check for: unclear amounts, missing currency specifications, vague timelines"
-
-# 2. Parse the document
+# Step 1: Parse the document
 python scripts/parse_document.py contract.docx --output contract_blocks.jsonl
 
-# 3. Run the audit
-python scripts/run_audit.py --document contract_blocks.jsonl --rules rules.json
+# Step 2: Run audit with default rules directly
+python scripts/run_audit.py \
+  --document contract_blocks.jsonl \
+  --rules assets/default_rules.json
 
-# 4. Generate the report
-python scripts/generate_report.py manifest.jsonl --output audit_report.html
+# Step 3: Generate the HTML audit report (template required)
+python scripts/generate_report.py manifest.jsonl --output audit_report.html --template assets/report_template.html
 ```
+
+### Path B: Custom Rules (User Has Specific Requirements)
+
+When user specifies custom audit requirements:
+
+```bash
+# Step 1: Generate custom audit rules (iterative process)
+# Initial generation - merges default rules with user requirements
+python scripts/parse_rules.py \
+  --input "Check for unclear payment amounts, missing currency, vague deadlines" \
+  --output contract_rules.json
+
+# Review generated rules, then refine if needed
+python scripts/parse_rules.py \
+  --base-rules contract_rules.json \
+  --input "Change R007 to HIGH severity, add rule for signature requirements" \
+  --output contract_rules.json
+
+# Step 2: Parse the document once rules are confirmed
+python scripts/parse_document.py contract.docx --output contract_blocks.jsonl
+
+# Step 3: Run the audit with confirmed custom rules
+python scripts/run_audit.py \
+  --document contract_blocks.jsonl \
+  --rules contract_rules.json
+
+# Step 4: Generate the HTML audit report (template required)
+python scripts/generate_report.py manifest.jsonl --output audit_report.html --template assets/report_template.html
+```
+
+## Agent Workflow Decision Tree
+
+**IF** user request is "audit [filename]" with NO specific requirements:
+1. Skip rule generation entirely
+2. Parse document: `parse_document.py`
+3. Run audit with default rules: `run_audit.py --rules assets/default_rules.json`
+4. Generate report: `generate_report.py --template <template.html>`
+
+**ELSE IF** user specifies custom audit requirements:
+1. Understand requirements and structure them
+2. Generate rules: `parse_rules.py --input "..."`
+3. Present generated rules to user for confirmation
+4. IF user requests changes:
+   - Iterate: `parse_rules.py --base-rules <previous> --input "modifications"`
+   - Return to step 3
+5. Once user approves rules
+6. Parse document: `parse_document.py`
+7. Run audit with custom rules: `run_audit.py --rules <custom_rules>.json`
+8. Generate report: `generate_report.py --template <template.html>`
 
 ## Technical Requirements
 
@@ -126,14 +245,14 @@ pip install aspose-words jinja2 google-generativeai openai
 - `jinja2`: HTML report templating
 - `google-generativeai` / `openai`: LLM API access
 
-**Recommended LLM:** Gemini-3-Flash or GPT-5.2
+**Recommended LLM:** gemini-3-flash or gpt-5.2
 
 ### Preflight Dependency Check (Required)
 
 Before running any script, the agent must verify the runtime prerequisites. If any required dependency is missing, stop and tell the user exactly how to install it and which environment variables to set.
 
 - `parse_document.py` requires `aspose-words`
-- `generate_report.py` uses `jinja2` (optional; falls back to a minimal template if missing)
+- `generate_report.py` requires `jinja2`
 - `run_audit.py` requires at least one LLM client:
   - Gemini: `google-generativeai` + `GOOGLE_API_KEY`
   - OpenAI: `openai` + `OPENAI_API_KEY`
@@ -160,7 +279,10 @@ export OPENAI_API_KEY=your_api_key
   "description": "Check for vague or ambiguous monetary amounts",
   "severity": "high",
   "category": "semantic_risk",
-  "keywords": ["approximately", "about", "around", "roughly"]
+  "examples": {
+    "violation": "Party B shall pay approximately 10% of the total amount.",
+    "correction": "Party B shall pay exactly 10% of the total contract amount (RMB)."
+  }
 }
 ```
 
@@ -215,7 +337,7 @@ export OPENAI_API_KEY=your_api_key
 
 ### Customizing Reports
 
-- Modify `assets/report_template.html` for custom styling
+- Modify `assets/report_template.html` for custom styling, and pass it via `--template`
 - Add company branding, custom sections, or additional statistics
 - Export manifest.jsonl for integration with other systems
 
@@ -229,11 +351,9 @@ doc-audit/
 │   ├── parse_document.py       # DOCX parsing (Aspose)
 │   ├── run_audit.py            # LLM audit execution
 │   └── generate_report.py      # Report generation
-├── assets/
-│   ├── default_rules.json      # Default audit rules
-│   └── report_template.html    # Jinja2 report template
-└── references/
-    └── algorithm_examples.md   # Implementation reference
+└── assets/
+    ├── default_rules.json      # Default audit rules
+    └── report_template.html    # Jinja2 report template
 ```
 
 ## Limitations
@@ -255,11 +375,10 @@ doc-audit/
 
 **LLM Rate Limiting:**
 - Adjust `--rate-limit` parameter (default: 0.5 seconds between requests)
-- Use batch mode for large documents
 
 **Memory Issues with Large Documents:**
 - Process in chunks using `--start-block` and `--end-block` parameters
-- Save checkpoints frequently with `--checkpoint-interval`
+- Use `--resume` to continue from previous run if interrupted
 
 ## Related Resources
 

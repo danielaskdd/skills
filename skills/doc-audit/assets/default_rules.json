@@ -8,7 +8,6 @@
       "description": "Check for typos and spelling errors in the text",
       "severity": "medium",
       "category": "grammar",
-      "keywords": [],
       "examples": {
         "violation": "The comapny will provide services...",
         "correction": "The company will provide services..."
@@ -19,7 +18,6 @@
       "description": "Check for grammar errors and sentence structure issues",
       "severity": "medium",
       "category": "grammar",
-      "keywords": [],
       "examples": {
         "violation": "The parties agrees to the terms.",
         "correction": "The parties agree to the terms."
@@ -30,7 +28,6 @@
       "description": "Check for unclear references (ambiguous pronouns, vague terms without clear antecedents)",
       "severity": "high",
       "category": "clarity",
-      "keywords": ["it", "this", "that", "they", "those", "these", "such", "said"],
       "examples": {
         "violation": "If the payment is late, it will be subject to penalties. They must pay within 30 days.",
         "correction": "If the payment is late, the payment will be subject to penalties. The debtor must pay within 30 days."
@@ -41,7 +38,6 @@
       "description": "Check for logical inconsistencies (contradictions between stated facts and conclusions)",
       "severity": "high",
       "category": "logic",
-      "keywords": [],
       "examples": {
         "violation": "The contract is effective for 12 months. The parties may terminate at any time before the 6-month anniversary.",
         "correction": "Clarify the relationship between contract duration and early termination rights."
@@ -51,8 +47,7 @@
       "id": "R005",
       "description": "Check for vague or ambiguous monetary amounts",
       "severity": "high",
-      "category": "semantic_risk",
-      "keywords": ["approximately", "about", "around", "roughly", "estimated", "up to", "at least"],
+      "category": "semantic",
       "examples": {
         "violation": "Party B shall pay approximately 10% of the total amount.",
         "correction": "Party B shall pay exactly 10% of the total contract amount (RMB)."
@@ -62,8 +57,7 @@
       "id": "R006",
       "description": "Check for missing currency specifications in monetary values",
       "severity": "high",
-      "category": "semantic_risk",
-      "keywords": [],
+      "category": "semantic",
       "examples": {
         "violation": "The penalty amount is 50,000.",
         "correction": "The penalty amount is RMB 50,000 (fifty thousand yuan)."
@@ -73,8 +67,7 @@
       "id": "R007",
       "description": "Check for vague time references without specific dates",
       "severity": "medium",
-      "category": "semantic_risk",
-      "keywords": ["soon", "promptly", "timely", "immediately", "as soon as possible", "ASAP", "shortly"],
+      "category": "semantic",
       "examples": {
         "violation": "The deliverables shall be provided promptly after signing.",
         "correction": "The deliverables shall be provided within 30 calendar days after the contract signing date."
@@ -85,7 +78,6 @@
       "description": "Check for undefined technical terms or acronyms",
       "severity": "low",
       "category": "clarity",
-      "keywords": [],
       "examples": {
         "violation": "The system must comply with GDPR and SOC2 requirements.",
         "correction": "The system must comply with GDPR (General Data Protection Regulation) and SOC2 (Service Organization Control 2) requirements."
@@ -96,7 +88,6 @@
       "description": "Check for passive voice that obscures responsibility",
       "severity": "low",
       "category": "clarity",
-      "keywords": ["is to be", "will be", "shall be", "must be", "has been", "was"],
       "examples": {
         "violation": "The report must be submitted by the deadline.",
         "correction": "Party A must submit the report by the deadline."
@@ -107,7 +98,6 @@
       "description": "Check for double negatives that create ambiguity",
       "severity": "medium",
       "category": "clarity",
-      "keywords": ["not", "no", "never", "none", "neither", "without"],
       "examples": {
         "violation": "The agreement shall not be invalid unless both parties consent.",
         "correction": "The agreement shall remain valid unless both parties consent to its termination."
