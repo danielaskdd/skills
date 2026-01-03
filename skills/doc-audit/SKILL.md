@@ -1,6 +1,6 @@
 ---
 name: doc-audit
-description: Intelligent document audit system for compliance review, legal verification, and engineering document validation using LLM
+description: Intelligent document audit system for compliance review, legal or technical document verification, and engineering document validation using LLM
 type: active
 version: 1.0.0
 ---
@@ -13,7 +13,7 @@ version: 1.0.0
 
 Use this skill when you need to:
 - Audit Word documents (.docx) for compliance with specific rules
-- Verify legal documents for language accuracy and consistency
+- Verify legal or technical documents for language accuracy and consistency
 - Review engineering specifications for technical correctness
 - Check documents for typos, grammar errors, unclear references, and logical inconsistencies
 - Generate detailed audit reports with issue tracing
