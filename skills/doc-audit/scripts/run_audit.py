@@ -16,7 +16,8 @@ HAS_GEMINI = False
 HAS_OPENAI = False
 
 try:
-    import google.generativeai as genai
+    from google import genai
+    from google.genai import types
     HAS_GEMINI = True
 except ImportError:
     pass
@@ -253,7 +254,7 @@ def build_user_prompt(block: dict) -> str:
 {block_text}"""
 
 
-def audit_block_gemini(block: dict, system_prompt: str, model_name: str = None) -> dict:
+def audit_block_gemini(block: dict, system_prompt: str, model_name: str = None, client = None) -> dict:
     """
     Audit a text block using Google Gemini with strict JSON mode.
 
@@ -261,6 +262,7 @@ def audit_block_gemini(block: dict, system_prompt: str, model_name: str = None) 
         block: Text block to audit
         system_prompt: Cached system prompt with rules and instructions
         model_name: Gemini model to use (uses DOC_AUDIT_GEMINI_MODEL env var if None)
+        client: Gemini client instance (uses DOC_AUDIT_GEMINI_MODEL env var if None)
 
     Returns:
         Audit result dictionary
@@ -268,15 +270,16 @@ def audit_block_gemini(block: dict, system_prompt: str, model_name: str = None) 
     if model_name is None:
         model_name = os.getenv("DOC_AUDIT_GEMINI_MODEL", "gemini-3-flash")
     
+    if client is None:
+        client = genai.Client(api_key=os.getenv("GOOGLE_API_KEY"))
+    
     user_prompt = build_user_prompt(block)
 
-    model = genai.GenerativeModel(
-        model_name,
-        system_instruction=system_prompt
-    )
-    response = model.generate_content(
-        user_prompt,
-        generation_config=genai.GenerationConfig(
+    response = client.models.generate_content(
+        model=model_name,
+        contents=user_prompt,
+        config=types.GenerateContentConfig(
+            system_instruction=system_prompt,
             response_mime_type="application/json",
             response_schema=AUDIT_RESULT_SCHEMA
         )
@@ -433,18 +436,20 @@ def main():
         if not HAS_GEMINI and not HAS_OPENAI:
             print("Error: No LLM library installed.", file=sys.stderr)
             print("Install one of:", file=sys.stderr)
-            print("  pip install google-generativeai", file=sys.stderr)
+            print("  pip install google-genai", file=sys.stderr)
             print("  pip install openai", file=sys.stderr)
             sys.exit(1)
 
     # Determine which model to use
     use_gemini = False
+    gemini_client = None
     model_name = args.model
 
     if model_name == "auto":
         if HAS_GEMINI and os.getenv("GOOGLE_API_KEY"):
             use_gemini = True
             model_name = os.getenv("DOC_AUDIT_GEMINI_MODEL", "gemini-3-flash")
+            gemini_client = genai.Client(api_key=os.getenv("GOOGLE_API_KEY"))
         elif HAS_OPENAI and os.getenv("OPENAI_API_KEY"):
             model_name = os.getenv("DOC_AUDIT_OPENAI_MODEL", "gpt-5.2")
         else:
@@ -452,13 +457,13 @@ def main():
             sys.exit(1)
     elif "gemini" in model_name.lower():
         if not HAS_GEMINI:
-            print("Error: google-generativeai not installed", file=sys.stderr)
+            print("Error: google-genai not installed", file=sys.stderr)
             sys.exit(1)
         if not os.getenv("GOOGLE_API_KEY"):
             print("Error: GOOGLE_API_KEY not set", file=sys.stderr)
             sys.exit(1)
         use_gemini = True
-        genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
+        gemini_client = genai.Client(api_key=os.getenv("GOOGLE_API_KEY"))
     else:
         # Treat all other models as OpenAI (gpt-5.2, o1-mini, o3-mini, etc.)
         if not HAS_OPENAI:
@@ -467,9 +472,6 @@ def main():
         if not os.getenv("OPENAI_API_KEY"):
             print("Error: OPENAI_API_KEY not set", file=sys.stderr)
             sys.exit(1)
-
-    if use_gemini:
-        genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
 
     # Load inputs
     print(f"Loading blocks from: {args.document}")
@@ -527,7 +529,7 @@ def main():
         try:
             # Call LLM with cached system prompt
             if use_gemini:
-                result = audit_block_gemini(block, system_prompt, model_name)
+                result = audit_block_gemini(block, system_prompt, model_name, gemini_client)
             else:
                 result = audit_block_openai(block, system_prompt, model_name)
 

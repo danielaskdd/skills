@@ -49,10 +49,10 @@ echo "3. Installing Python dependencies..."
 source "$VENV_DIR/bin/activate"
 
 pip install --quiet --upgrade pip
-pip install --quiet aspose-words jinja2 google-generativeai openai
+pip install --quiet aspose-words jinja2 google-genai openai
 
 echo "   ✓ Installed packages:"
-pip list | grep -E "aspose-words|jinja2|google-generativeai|openai" | sed 's/^/     - /'
+pip list | grep -E "aspose-words|jinja2|google-genai|openai" | sed 's/^/     - /'
 echo
 
 # 4. Create environment setup script
@@ -314,7 +314,7 @@ All scripts (`parse_rules.py` and `run_audit.py`) will automatically use the con
 The audit process requires an LLM API. Supported providers:
 
 1. **Google Gemini** (recommended)
-   - Install: `pip install google-generativeai`
+   - Install: `pip install google-genai`
    - Set: `export GOOGLE_API_KEY=...`
 
 2. **OpenAI**
@@ -353,7 +353,7 @@ source .claude-work/doc-audit/env.sh
 ```bash
 # Reinstall dependencies
 source .claude-work/venv/bin/activate
-pip install aspose-words jinja2 google-generativeai openai
+pip install aspose-words jinja2 google-genai openai
 ```
 
 **Resume interrupted audit**

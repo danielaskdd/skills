@@ -96,11 +96,12 @@ def merge_rules_with_llm(base_rules: list, input_text: str, api_key: Optional[st
     google_key = api_key or os.getenv("GOOGLE_API_KEY")
     if google_key:
         try:
-            import google.generativeai as genai
-            genai.configure(api_key=google_key)
+            from google import genai
+            from google.genai import types
+            
+            client = genai.Client(api_key=google_key)
             # Use environment variable for model name, fallback to default
             model_name = os.getenv("DOC_AUDIT_GEMINI_MODEL", "gemini-3-flash")
-            model = genai.GenerativeModel(model_name)
 
             prompt = f"""You are an audit rule expert. Merge these existing rules with user's new requirements.
 
@@ -128,9 +129,10 @@ Each rule must have:
 
 Return a valid JSON array of the complete merged rules.
 """
-            response = model.generate_content(
-                prompt,
-                generation_config=genai.GenerationConfig(
+            response = client.models.generate_content(
+                model=model_name,
+                contents=prompt,
+                config=types.GenerateContentConfig(
                     response_mime_type="application/json",
                     response_schema=RULES_ARRAY_SCHEMA
                 )
@@ -140,7 +142,7 @@ Return a valid JSON array of the complete merged rules.
             return merged_rules
 
         except ImportError:
-            print("Warning: google-generativeai not installed. Trying OpenAI instead.", file=sys.stderr)
+            print("Warning: google-genai not installed. Trying OpenAI instead.", file=sys.stderr)
         except Exception as e:
             print(f"Warning: LLM merging failed: {e}. Trying fallback.", file=sys.stderr)
 
@@ -258,7 +260,7 @@ def main():
     has_gemini = False
     has_openai = False
     try:
-        import google.generativeai  # noqa: F401
+        from google import genai  # noqa: F401
         has_gemini = True
     except ImportError:
         pass
@@ -277,7 +279,7 @@ def main():
         else:
             print("Error: No supported LLM client installed.", file=sys.stderr)
         print("Install one of:", file=sys.stderr)
-        print("  pip install google-generativeai", file=sys.stderr)
+        print("  pip install google-genai", file=sys.stderr)
         print("  pip install openai", file=sys.stderr)
         sys.exit(1)
 

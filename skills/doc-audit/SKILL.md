@@ -120,7 +120,7 @@ python scripts/parse_rules.py \
 - `--api-key <key>`: LLM API key (optional, uses GOOGLE_API_KEY or OPENAI_API_KEY by default)
 
 **LLM Requirement:**
-- Requires `google-generativeai` or `openai` package installed
+- Requires `google-genai` or `openai` package installed
 - Requires `GOOGLE_API_KEY` or `OPENAI_API_KEY` environment variable set
 
 **Default Rules (10 total):**
@@ -353,13 +353,13 @@ python skills/doc-audit/scripts/generate_report.py \
 ### Dependencies
 
 ```bash
-pip install aspose-words jinja2 google-generativeai openai
+pip install aspose-words jinja2 google-genai openai
 ```
 
 **Core Libraries:**
 - `aspose-words`: Professional DOCX parsing with list label extraction
 - `jinja2`: HTML report templating
-- `google-generativeai` / `openai`: LLM API access
+- `google-genai` / `openai`: LLM API access
 
 **Recommended LLM:** gemini-3-flash or gpt-5.2
 
@@ -370,7 +370,7 @@ Before running any script, the agent must verify the runtime prerequisites. If a
 - `parse_document.py` requires `aspose-words`
 - `generate_report.py` requires `jinja2`
 - `run_audit.py` requires at least one LLM client:
-  - Gemini: `google-generativeai` + `GOOGLE_API_KEY`
+  - Gemini: `google-genai` + `GOOGLE_API_KEY`
   - OpenAI: `openai` + `OPENAI_API_KEY`
 
 **Failure handling:** If a required package or API key is missing, do not proceed with the workflow. Provide the exact `pip install ...` command(s) and the `export ...` command(s) needed to prepare the environment.
