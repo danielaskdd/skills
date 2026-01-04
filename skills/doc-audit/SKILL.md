@@ -393,6 +393,20 @@ export DOC_AUDIT_GEMINI_MODEL=gemini-3-flash    # Default Gemini model
 export DOC_AUDIT_OPENAI_MODEL=gpt-5.2           # Default OpenAI model
 ```
 
+**⚠️ OpenAI Model Compatibility:**
+
+When using OpenAI, the scripts use Structured Outputs (`json_schema` response format), which requires:
+- ✅ `gpt-4o-2024-08-06` or later
+- ✅ `gpt-4o-mini` or later
+- ✅ `gpt-4o` (latest)
+
+Older models are **NOT supported** and will cause API errors:
+- ❌ `gpt-4-turbo`
+- ❌ `gpt-4`
+- ❌ `gpt-3.5-turbo`
+
+If you encounter errors like "json_schema is not supported", ensure you're using a compatible model.
+
 **Model Configuration:**
 The default models for all scripts are centralized in `.claude-work/env.sh`:
 - **Gemini**: `gemini-3-flash` (changeable via `DOC_AUDIT_GEMINI_MODEL`)

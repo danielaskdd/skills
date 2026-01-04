@@ -542,12 +542,17 @@ def main():
                 }
                 violations_with_category.append(violation_with_category)
 
+            # Normalize is_violation based on actual violations (don't blindly trust LLM)
+            # Ground truth: if violations array has items, it's a violation
+            has_violations = len(violations_with_category) > 0
+            is_violation = has_violations
+
             # Build manifest entry
             entry = {
                 "uuid": block_uuid,
                 "p_heading": block.get('heading', ''),
                 "p_content": block.get('content', '') if isinstance(block.get('content'), str) else json.dumps(block.get('content', ''), ensure_ascii=False),
-                "is_violation": result.get('is_violation', False),
+                "is_violation": is_violation,
                 "violations": violations_with_category
             }
 

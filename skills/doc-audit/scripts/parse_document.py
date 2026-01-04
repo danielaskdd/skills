@@ -17,13 +17,14 @@ except ImportError:
     sys.exit(1)
 
 
-def generate_content_uuid(heading: str, content: str) -> str:
+def generate_content_uuid(heading: str, content: str, block_index: int) -> str:
     """
-    Generate deterministic UUID from heading and content using SHA-256 hash.
+    Generate deterministic UUID from heading, content, and block position using SHA-256 hash.
 
     Args:
         heading: Block heading text
         content: Block content (text or JSON string for tables)
+        block_index: Sequential block index in document (ensures uniqueness for duplicate content)
 
     Returns:
         32-character hexadecimal string (deterministic UUID)
@@ -35,7 +36,8 @@ def generate_content_uuid(heading: str, content: str) -> str:
     else:
         content_str = str(content)
     
-    combined = f"{heading}|{content_str}"
+    # Include block_index to ensure uniqueness for duplicate content under same heading
+    combined = f"{block_index}|{heading}|{content_str}"
     return hashlib.sha256(combined.encode('utf-8')).hexdigest()[:32]
 
 
@@ -93,11 +95,11 @@ def extract_audit_blocks(file_path: str) -> list:
                     if current_content:
                         content_text = "\n".join(current_content)
                         blocks.append({
-                            "uuid": generate_content_uuid(current_heading, content_text),
+                            "uuid": generate_content_uuid(current_heading, content_text, len(blocks)),
                             "heading": current_heading,
                             "content": content_text,
                             "type": "text",
-                            "parent_headings": list(current_heading_stack)
+                            "parent_headings": current_heading_stack[:-1]
                         })
                         current_content = []
 
@@ -115,11 +117,11 @@ def extract_audit_blocks(file_path: str) -> list:
                 if current_content:
                     content_text = "\n".join(current_content)
                     blocks.append({
-                        "uuid": generate_content_uuid(current_heading, content_text),
+                        "uuid": generate_content_uuid(current_heading, content_text, len(blocks)),
                         "heading": current_heading,
                         "content": content_text,
                         "type": "text",
-                        "parent_headings": list(current_heading_stack)
+                        "parent_headings": current_heading_stack[:-1]
                     })
                     current_content = []
 
@@ -137,22 +139,22 @@ def extract_audit_blocks(file_path: str) -> list:
 
                 table_heading = f"Table (under: {current_heading})"
                 blocks.append({
-                    "uuid": generate_content_uuid(table_heading, table_data),
+                    "uuid": generate_content_uuid(table_heading, table_data, len(blocks)),
                     "heading": table_heading,
                     "content": table_data,
                     "type": "table",
-                    "parent_headings": list(current_heading_stack)
+                    "parent_headings": current_heading_stack[:-1]
                 })
 
     # Don't forget the last block
     if current_content:
         content_text = "\n".join(current_content)
         blocks.append({
-            "uuid": generate_content_uuid(current_heading, content_text),
+            "uuid": generate_content_uuid(current_heading, content_text, len(blocks)),
             "heading": current_heading,
             "content": content_text,
             "type": "text",
-            "parent_headings": list(current_heading_stack)
+            "parent_headings": current_heading_stack[:-1]
         })
 
     return blocks
