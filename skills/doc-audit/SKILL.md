@@ -22,6 +22,23 @@ Use this skill when you need to:
 
 The doc-audit skill supports two workflow paths depending on whether user has specific audit requirements:
 
+### Phase 0: Environment Setup (First Time Only)
+
+Before running any audit, set up the project environment:
+
+```bash
+bash skills/doc-audit/scripts/setup_project_env.sh
+source .claude-work/env.sh
+```
+
+This creates:
+- `.claude-work/doc-audit/` - Directory for intermediate files (blocks, manifest)
+- `.claude-work/venv/` - Python virtual environment with all dependencies
+- `.claude-work/env.sh` - Environment activation script
+- `.claude-work/workflow-doc-audit.sh` - Convenience workflow script
+
+**Note:** User should have already set `GOOGLE_API_KEY` or `OPENAI_API_KEY` environment variable to choose their preferred LLM provider.
+
 ### Phase 1: Rule Selection (Optional)
 
 **Decision Point:** Does user specify custom audit requirements?
@@ -40,21 +57,29 @@ The doc-audit skill supports two workflow paths depending on whether user has sp
 ### Phase 2: Document Audit
 
 5. **Parse Document** - Extract text blocks from .docx with proper numbering (Aspose)
+   - Output: `.claude-work/doc-audit/blocks.jsonl`
 6. **Execute Audit** - LLM audits each text block against rules independently
+   - Output: `.claude-work/doc-audit/manifest.jsonl`
 7. **Generate Report** - Create HTML report with findings and source tracing
+   - Output: `<document_directory>/<document_name>_audit_report.html` (same directory as source document)
 
 ```
+Phase 0 (Setup - First Time Only):
+Environment Setup → [User sets API key] → Ready to Audit
+
 Path A (Default Rules):
 User: "Audit file.docx" → Parse Document → Audit (default rules) → Report
 
 Path B (Custom Rules):
 User: "Check for X, Y, Z" → Generate Rules → Present ───┐
                               ↑                         │
-                              └─ (Modify) ←─ Review ────┘
+                              └─ (Modify) ←─ Review ────┘ (User confirms)
                                                │
                                           (User Approves)
                                                ↓
                                           Parse Document → Audit → Report
+                                          
+Final Report Location: Same directory as source document (<filename>_audit_report.html)
 ```
 
 ## Available Tools
@@ -110,7 +135,10 @@ python scripts/parse_rules.py \
 2. Subsequent calls: Merges previous output + user refinements
 3. LLM intelligently handles overlaps, updates, and additions
 
-**Returns:** Complete unified JSON ruleset with rule ID, description, severity, category, and examples
+**Returns:** JSON file with:
+- `version`: Schema version (e.g., "1.0")
+- `total_rules`: Number of rules in the ruleset
+- `rules`: Array of rule objects, each containing rule ID, description, severity, category, and optional examples
 
 ### 2. Parse Document
 
@@ -158,79 +186,169 @@ python scripts/generate_report.py manifest.jsonl --output report.html --template
 **Important:** The `--template` parameter is **required**. Use `assets/report_template.html` or provide your own custom Jinja2 template.
 
 **Features:**
-- Total issue count and distribution by category/severity
+- Total issue count and distribution by category
 - Issue details with original text reference
 - Suggested corrections
 - Source tracing (heading + block content)
 - HTML is escaped by default; use `--trusted-html` only if inputs are trusted
 
-## Quick Start Examples
+## Quick Start (Agent Workflow)
 
-### Path A: Using Default Rules (No Custom Requirements)
+### One-Step Workflow (Recommended)
 
-When user only requests "audit [filename]" without specific requirements:
+Use the convenience script for the complete audit workflow:
 
 ```bash
-# Step 1: Parse the document
-python scripts/parse_document.py contract.docx --output contract_blocks.jsonl
+# Phase 0: Setup environment (first time only)
+bash skills/doc-audit/scripts/setup_project_env.sh
 
-# Step 2: Run audit with default rules directly
-python scripts/run_audit.py \
-  --document contract_blocks.jsonl \
-  --rules assets/default_rules.json
+# Run complete audit with default rules (assumes API key already set)
+./.claude-work/workflow-doc-audit.sh /path/to/contract.docx
 
-# Step 3: Generate the HTML audit report (template required)
-python scripts/generate_report.py manifest.jsonl --output audit_report.html --template assets/report_template.html
+# With custom rules
+./.claude-work/workflow-doc-audit.sh /path/to/contract.docx .claude-work/doc-audit/custom_rules.json
 ```
 
-### Path B: Custom Rules (User Has Specific Requirements)
+**Output:** Report saved to `/path/to/contract_audit_report.html`
 
-When user specifies custom audit requirements:
+---
+
+### Step-by-Step Workflow
+
+#### Phase 0: Environment Setup (First Time Only)
 
 ```bash
-# Step 1: Generate custom audit rules (iterative process)
-# Initial generation - merges default rules with user requirements
-python scripts/parse_rules.py \
+bash skills/doc-audit/scripts/setup_project_env.sh
+source .claude-work/env.sh
+```
+
+This creates:
+- `.claude-work/doc-audit/` - Intermediate files directory
+- `.claude-work/venv/` - Python virtual environment
+- `.claude-work/env.sh` - Environment activation script
+- `.claude-work/workflow-doc-audit.sh` - Convenience workflow script
+
+**Prerequisites:** User should have `GOOGLE_API_KEY` or `OPENAI_API_KEY` environment variable set.
+
+---
+
+#### Decision Point: Does user specify custom audit requirements?
+
+### ➤ Path A: NO - Use Default Rules
+
+**When:** User requests "audit [filename]" without specific requirements
+
+**Workflow:**
+1. **Skip Phase 1** - Use default rules directly
+2. **Phase 2-Step 5:** Parse document
+
+```bash
+python skills/doc-audit/scripts/parse_document.py /path/to/contract.docx \
+  --output .claude-work/doc-audit/blocks.jsonl
+```
+
+3. **Phase 2-Step 6:** Run audit with default rules
+
+```bash
+python skills/doc-audit/scripts/run_audit.py \
+  --document .claude-work/doc-audit/blocks.jsonl \
+  --rules skills/doc-audit/assets/default_rules.json \
+  --output .claude-work/doc-audit/manifest.jsonl
+```
+
+4. **Phase 2-Step 7:** Generate report (saved to source document directory)
+
+```bash
+python skills/doc-audit/scripts/generate_report.py \
+  .claude-work/doc-audit/manifest.jsonl \
+  --output /path/to/contract_audit_report.html \
+  --template skills/doc-audit/assets/report_template.html
+```
+
+**Output:** `/path/to/contract_audit_report.html`
+
+---
+
+### ➤ Path B: YES - Custom Rules with User Interaction
+
+**When:** User specifies custom audit requirements
+
+**Example:** User says: _"Check for unclear payment amounts, missing currency, vague deadlines"_
+
+**Workflow:**
+
+1. **Phase 1-Step 1:** Analyze user requirements (agent understands the request)
+
+2. **Phase 1-Step 2:** Generate initial custom audit rules
+
+```bash
+python skills/doc-audit/scripts/parse_rules.py \
   --input "Check for unclear payment amounts, missing currency, vague deadlines" \
-  --output contract_rules.json
-
-# Review generated rules, then refine if needed
-python scripts/parse_rules.py \
-  --base-rules contract_rules.json \
-  --input "Change R007 to HIGH severity, add rule for signature requirements" \
-  --output contract_rules.json
-
-# Step 2: Parse the document once rules are confirmed
-python scripts/parse_document.py contract.docx --output contract_blocks.jsonl
-
-# Step 3: Run the audit with confirmed custom rules
-python scripts/run_audit.py \
-  --document contract_blocks.jsonl \
-  --rules contract_rules.json
-
-# Step 4: Generate the HTML audit report (template required)
-python scripts/generate_report.py manifest.jsonl --output audit_report.html --template assets/report_template.html
+  --output .claude-work/doc-audit/custom_rules.json
 ```
 
-## Agent Workflow Decision Tree
+3. **Phase 1-Step 3:** Present generated rules to user for confirmation
 
-**IF** user request is "audit [filename]" with NO specific requirements:
-1. Skip rule generation entirely
-2. Parse document: `parse_document.py`
-3. Run audit with default rules: `run_audit.py --rules assets/default_rules.json`
-4. Generate report: `generate_report.py --template <template.html>`
+**Agent action:** Show the generated rules and ask:
+> _"Please review the generated rules. Any changes needed?"_
 
-**ELSE IF** user specifies custom audit requirements:
-1. Understand requirements and structure them
-2. Generate rules: `parse_rules.py --input "..."`
-3. Present generated rules to user for confirmation
-4. IF user requests changes:
-   - Iterate: `parse_rules.py --base-rules <previous> --input "modifications"`
-   - Return to step 3
-5. Once user approves rules
-6. Parse document: `parse_document.py`
-7. Run audit with custom rules: `run_audit.py --rules <custom_rules>.json`
-8. Generate report: `generate_report.py --template <template.html>`
+4. **Phase 1-Step 4:** Handle user feedback
+
+   **If user requests changes:**
+   > User says: _"Change R007 severity to HIGH, add rule for signature requirements"_
+
+   Iterate and refine:
+   ```bash
+   python skills/doc-audit/scripts/parse_rules.py \
+     --base-rules .claude-work/doc-audit/custom_rules.json \
+     --input "Change R007 severity to HIGH, add rule for signature requirements" \
+     --output .claude-work/doc-audit/custom_rules.json
+   ```
+
+   → **Return to Step 3** (present updated rules and ask for confirmation again)
+
+   **If user approves:**
+   > User says: _"Looks good, proceed with audit"_
+
+   → **Proceed to Phase 2**
+
+5. **Phase 2-Step 5:** Parse the document
+
+```bash
+python skills/doc-audit/scripts/parse_document.py /path/to/contract.docx \
+  --output .claude-work/doc-audit/blocks.jsonl
+```
+
+6. **Phase 2-Step 6:** Run audit with confirmed custom rules
+
+```bash
+python skills/doc-audit/scripts/run_audit.py \
+  --document .claude-work/doc-audit/blocks.jsonl \
+  --rules .claude-work/doc-audit/custom_rules.json \
+  --output .claude-work/doc-audit/manifest.jsonl
+```
+
+7. **Phase 2-Step 7:** Generate report (saved to source document directory)
+
+```bash
+python skills/doc-audit/scripts/generate_report.py \
+  .claude-work/doc-audit/manifest.jsonl \
+  --output /path/to/contract_audit_report.html \
+  --template skills/doc-audit/assets/report_template.html
+```
+
+**Output:** `/path/to/contract_audit_report.html`
+
+---
+
+### Summary
+
+| Scenario | Phase 1 (Rules) | Phase 2 (Audit) | Output |
+|----------|----------------|-----------------|---------|
+| **Path A:** Default rules | Skip | Parse → Audit → Report | `<document>_audit_report.html` |
+| **Path B:** Custom rules | Generate → Confirm (iterate if needed) | Parse → Audit → Report | `<document>_audit_report.html` |
+
+**Final report location:** Always saved to the same directory as the source document.
 
 ## Technical Requirements
 
@@ -278,7 +396,7 @@ export OPENAI_API_KEY=your_api_key
   "id": "R001",
   "description": "Check for vague or ambiguous monetary amounts",
   "severity": "high",
-  "category": "semantic_risk",
+  "category": "semantic",
   "examples": {
     "violation": "Party B shall pay approximately 10% of the total amount.",
     "correction": "Party B shall pay exactly 10% of the total contract amount (RMB)."
@@ -300,16 +418,42 @@ export OPENAI_API_KEY=your_api_key
 
 ### Audit Result Format
 
+The manifest entry written by `run_audit.py` contains both the `violations` array (all violations found) and backward-compatible single-violation fields:
+
 ```json
 {
   "uuid": "550e8400-e29b-41d4-a716-446655440000",
   "p_heading": "2.1 Penalty Clause",
   "p_content": "If Party B delays payment, they shall pay approximately 1% of the total amount as compensation.",
   "is_violation": true,
-  "issue_type": "semantic_risk",
+  "violations": [
+    {
+      "rule_id": "R002",
+      "category": "semantic",
+      "violation_text": "approximately 1% of the total amount",
+      "violation_reason": "Contains vague term 'approximately' and does not specify currency",
+      "suggestion": "Revise to: 'shall pay 1% of the contract total amount as penalty (settled in CNY).'"
+    }
+  ],
+  "category": "semantic",
   "rule_id": "R002",
-  "violation_reason": "Contains vague term 'approximately' and does not specify currency, violating rule R002.",
+  "violation_reason": "Contains vague term 'approximately' and does not specify currency",
   "suggestion": "Revise to: 'shall pay 1% of the contract total amount as penalty (settled in CNY).'"
+}
+```
+
+**Note:** The `violations` array contains all violations found in the text block. The `category` field for each violation is automatically populated by the script based on the `rule_id` lookup in the rules file. The top-level `category`, `rule_id`, `violation_reason`, and `suggestion` fields are populated from the first violation for backward compatibility with older report templates.
+
+**LLM Output:** The LLM only outputs `rule_id`, `violation_text`, `violation_reason`, and `suggestion` for each violation. The script adds `category` by looking up the rule's category from the rules file.
+
+When no violations are found:
+```json
+{
+  "uuid": "550e8400-e29b-41d4-a716-446655440000",
+  "p_heading": "2.1 Penalty Clause",
+  "p_content": "Party B shall pay 1% of the contract amount within 30 days.",
+  "is_violation": false,
+  "violations": []
 }
 ```
 
@@ -347,6 +491,7 @@ export OPENAI_API_KEY=your_api_key
 doc-audit/
 ├── SKILL.md                    # This file
 ├── scripts/
+│   ├── setup_project_env.sh    # Environment setup script (NEW)
 │   ├── parse_rules.py          # Rule parsing
 │   ├── parse_document.py       # DOCX parsing (Aspose)
 │   ├── run_audit.py            # LLM audit execution
@@ -354,6 +499,18 @@ doc-audit/
 └── assets/
     ├── default_rules.json      # Default audit rules
     └── report_template.html    # Jinja2 report template
+
+# Working directory (created by setup script)
+.claude-work/
+├── doc-audit/                  # Intermediate files
+│   ├── blocks.jsonl            # Parsed document blocks
+│   ├── manifest.jsonl          # Audit results
+│   └── custom_rules.json       # Custom rules (optional)
+├── venv/                       # Python virtual environment
+├── logs/                       # Operation logs
+├── env.sh                      # Environment activation script
+├── workflow-doc-audit.sh       # Convenience workflow script
+└── README-doc-audit.md         # Working directory documentation
 ```
 
 ## Limitations

@@ -60,7 +60,7 @@
       "category": "semantic",
       "examples": {
         "violation": "The penalty amount is 50,000.",
-        "correction": "The penalty amount is RMB 50,000 (fifty thousand yuan)."
+        "correction": "The penalty amount is RMB 50,000."
       }
     },
     {

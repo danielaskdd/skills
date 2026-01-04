@@ -178,25 +178,11 @@
             padding: 1.5rem;
             margin-bottom: 1rem;
             transition: all 0.2s;
+            border-left: 4px solid var(--primary);
         }
 
         .issue:hover {
             box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
-        }
-
-        .issue.high {
-            border-left: 4px solid var(--danger);
-            background: linear-gradient(90deg, rgba(254,226,226,0.3) 0%, white 20%);
-        }
-
-        .issue.medium {
-            border-left: 4px solid var(--warning);
-            background: linear-gradient(90deg, rgba(254,243,199,0.3) 0%, white 20%);
-        }
-
-        .issue.low {
-            border-left: 4px solid var(--success);
-            background: linear-gradient(90deg, rgba(220,252,231,0.3) 0%, white 20%);
         }
 
         .issue-header {
@@ -226,9 +212,6 @@
             font-weight: 500;
         }
 
-        .badge.high { background: #fee2e2; color: var(--danger); }
-        .badge.medium { background: #fef3c7; color: var(--warning); }
-        .badge.low { background: #dcfce7; color: var(--success); }
         .badge.category { background: var(--gray-100); color: var(--gray-600); }
         .badge.rule { background: #dbeafe; color: var(--primary); }
 
@@ -323,9 +306,6 @@
             transition: width 0.5s ease;
         }
 
-        .chart-bar.high { background: linear-gradient(90deg, var(--danger) 0%, var(--danger-light) 100%); }
-        .chart-bar.medium { background: linear-gradient(90deg, var(--warning) 0%, var(--warning-light) 100%); }
-        .chart-bar.low { background: linear-gradient(90deg, var(--success) 0%, var(--success-light) 100%); }
         .chart-bar.category { background: linear-gradient(90deg, var(--primary) 0%, var(--primary-light) 100%); }
 
         .chart-value {
@@ -404,16 +384,6 @@
                 <h3>审计块数</h3>
                 <div class="value">{{ total_blocks }}</div>
             </div>
-            <div class="stat-card danger">
-                <div class="icon">🔴</div>
-                <h3>高风险</h3>
-                <div class="value">{{ severity_counts.get('high', 0) }}</div>
-            </div>
-            <div class="stat-card warning">
-                <div class="icon">🟡</div>
-                <h3>中风险</h3>
-                <div class="value">{{ severity_counts.get('medium', 0) }}</div>
-            </div>
         </div>
 
         <div class="section">
@@ -421,18 +391,6 @@
                 <h2>📊 问题分布</h2>
             </div>
             <div class="distribution-section">
-                <div class="chart-container">
-                    <h3>按严重程度</h3>
-                    {% for severity, count in severity_counts.items() %}
-                    <div class="chart-item">
-                        <span class="chart-label">{{ severity|upper }}</span>
-                        <div class="chart-bar-container">
-                            <div class="chart-bar {{ severity }}" style="width: {{ (count / violation_count * 100) if violation_count > 0 else 0 }}%"></div>
-                        </div>
-                        <span class="chart-value">{{ count }}</span>
-                    </div>
-                    {% endfor %}
-                </div>
                 <div class="chart-container">
                     <h3>按问题类型</h3>
                     {% for category, count in category_counts.items() %}
@@ -451,25 +409,18 @@
         <div class="section">
             <div class="section-header">
                 <h2>🔍 问题详情 ({{ violation_count }})</h2>
-                <div class="filter-buttons">
-                    <button class="filter-btn active" data-filter="all">全部</button>
-                    <button class="filter-btn" data-filter="high">高风险</button>
-                    <button class="filter-btn" data-filter="medium">中风险</button>
-                    <button class="filter-btn" data-filter="low">低风险</button>
-                </div>
             </div>
 
             {% if violations %}
                 {% for v in violations %}
-                <div class="issue {{ v.severity }}" data-severity="{{ v.severity }}">
+                <div class="issue">
                     <div class="issue-header">
                         <div>
                             <span class="issue-title">{{ v.heading }}</span>
                         </div>
                         <div class="issue-badges">
                             <span class="badge rule">{{ v.rule_id }}</span>
-                            <span class="badge category">{{ v.issue_type }}</span>
-                            <span class="badge {{ v.severity }}">{{ v.severity|upper }}</span>
+                            <span class="badge category">{{ v.category }}</span>
                         </div>
                     </div>
 
@@ -506,23 +457,5 @@
         </footer>
     </div>
 
-    <script>
-        // Filter functionality
-        document.querySelectorAll('.filter-btn').forEach(btn => {
-            btn.addEventListener('click', () => {
-                document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
-                btn.classList.add('active');
-
-                const filter = btn.dataset.filter;
-                document.querySelectorAll('.issue').forEach(issue => {
-                    if (filter === 'all' || issue.dataset.severity === filter) {
-                        issue.style.display = 'block';
-                    } else {
-                        issue.style.display = 'none';
-                    }
-                });
-            });
-        });
-    </script>
 </body>
 </html>

@@ -28,6 +28,47 @@ except ImportError:
     pass
 
 
+# JSON Schema for LLM structured output
+AUDIT_RESULT_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "is_violation": {
+            "type": "boolean",
+            "description": "Whether any violations were found"
+        },
+        "violations": {
+            "type": "array",
+            "description": "List of violations found",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "rule_id": {
+                        "type": "string",
+                        "description": "ID of the violated rule (e.g., R001)"
+                    },
+                    "violation_text": {
+                        "type": "string",
+                        "description": "The specific problematic text"
+                    },
+                    "violation_reason": {
+                        "type": "string",
+                        "description": "Explanation of why this violates the rule"
+                    },
+                    "suggestion": {
+                        "type": "string",
+                        "description": "Suggested correction"
+                    }
+                },
+                "required": ["rule_id", "violation_text", "violation_reason", "suggestion"],
+                "additionalProperties": False
+            }
+        }
+    },
+    "required": ["is_violation", "violations"],
+    "additionalProperties": False
+}
+
+
 def load_blocks(file_path: str) -> list:
     """
     Load text blocks from JSONL or JSON file.
@@ -79,6 +120,19 @@ def load_rules(file_path: str) -> list:
         return data['rules']
     else:
         raise ValueError(f"Unknown rules format in {file_path}")
+
+
+def build_rule_category_map(rules: list) -> dict:
+    """
+    Build a mapping from rule_id to category.
+
+    Args:
+        rules: List of rule dictionaries
+
+    Returns:
+        Dictionary mapping rule_id to category
+    """
+    return {rule['id']: rule.get('category', 'other') for rule in rules}
 
 
 def format_block_for_prompt(block: dict) -> str:
@@ -170,7 +224,6 @@ Return your analysis as a JSON object with this structure:
   "violations": [
     {{
       "rule_id": "R001",
-      "issue_type": "grammar|clarity|logic|compliance|format|semantic_risk|other",
       "violation_text": "the specific problematic text",
       "violation_reason": "explanation of why this violates the rule",
       "suggestion": "suggested correction"
@@ -191,7 +244,7 @@ Return ONLY the JSON object, no other text."""
 
 def audit_block_gemini(block: dict, rules: list, model_name: str = "gemini-3-flash") -> dict:
     """
-    Audit a text block using Google Gemini.
+    Audit a text block using Google Gemini with strict JSON mode.
 
     Args:
         block: Text block to audit
@@ -204,24 +257,22 @@ def audit_block_gemini(block: dict, rules: list, model_name: str = "gemini-3-fla
     prompt = build_audit_prompt(block, rules)
 
     model = genai.GenerativeModel(model_name)
-    response = model.generate_content(prompt)
-    response_text = response.text.strip()
-
-    # Clean up JSON response
-    if response_text.startswith("```json"):
-        response_text = response_text[7:]
-    if response_text.startswith("```"):
-        response_text = response_text[3:]
-    if response_text.endswith("```"):
-        response_text = response_text[:-3]
-
-    result = json.loads(response_text.strip())
+    response = model.generate_content(
+        prompt,
+        generation_config=genai.GenerationConfig(
+            response_mime_type="application/json",
+            response_schema=AUDIT_RESULT_SCHEMA
+        )
+    )
+    
+    # With structured output, response is guaranteed to be valid JSON
+    result = json.loads(response.text)
     return result
 
 
 def audit_block_openai(block: dict, rules: list, model_name: str = "gpt-5.2") -> dict:
     """
-    Audit a text block using OpenAI.
+    Audit a text block using OpenAI with strict JSON mode.
 
     Args:
         block: Text block to audit
@@ -237,20 +288,19 @@ def audit_block_openai(block: dict, rules: list, model_name: str = "gpt-5.2") ->
     response = client.chat.completions.create(
         model=model_name,
         messages=[{"role": "user", "content": prompt}],
-        temperature=0.2
+        temperature=0.2,
+        response_format={
+            "type": "json_schema",
+            "json_schema": {
+                "name": "audit_result",
+                "strict": True,
+                "schema": AUDIT_RESULT_SCHEMA
+            }
+        }
     )
 
-    response_text = response.choices[0].message.content.strip()
-
-    # Clean up JSON response
-    if response_text.startswith("```json"):
-        response_text = response_text[7:]
-    if response_text.startswith("```"):
-        response_text = response_text[3:]
-    if response_text.endswith("```"):
-        response_text = response_text[:-3]
-
-    result = json.loads(response_text.strip())
+    # With structured output, response is guaranteed to be valid JSON
+    result = json.loads(response.choices[0].message.content)
     return result
 
 
@@ -386,7 +436,8 @@ def main():
             sys.exit(1)
         use_gemini = True
         genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
-    elif "gpt" in model_name.lower():
+    else:
+        # Treat all other models as OpenAI (gpt-5.2, o1-mini, o3-mini, etc.)
         if not HAS_OPENAI:
             print("Error: openai not installed", file=sys.stderr)
             sys.exit(1)
@@ -406,6 +457,9 @@ def main():
     rules = load_rules(args.rules)
     print(f"Loaded {len(rules)} rules")
 
+    # Build rule category mapping
+    rule_category_map = build_rule_category_map(rules)
+
     # Handle resume
     completed_uuids = set()
     if args.resume and Path(args.output).exists():
@@ -423,7 +477,7 @@ def main():
     print("-" * 50)
 
     # Process blocks
-    violations_found = 0
+    total_violations = 0
     blocks_processed = 0
 
     for i, block in enumerate(blocks_to_process):
@@ -449,19 +503,30 @@ def main():
             else:
                 result = audit_block_openai(block, rules, model_name)
 
+            # Add category to each violation based on rule_id
+            violations_with_category = []
+            for violation in result.get('violations', []):
+                rule_id = violation.get('rule_id', '')
+                category = rule_category_map.get(rule_id, 'other')
+                violation_with_category = {
+                    **violation,
+                    "category": category
+                }
+                violations_with_category.append(violation_with_category)
+
             # Build manifest entry
             entry = {
                 "uuid": block_uuid,
                 "p_heading": block.get('heading', ''),
-                "p_content": block.get('content', '') if isinstance(block.get('content'), str) else json.dumps(block.get('content', '')),
+                "p_content": block.get('content', '') if isinstance(block.get('content'), str) else json.dumps(block.get('content', ''), ensure_ascii=False),
                 "is_violation": result.get('is_violation', False),
-                "violations": result.get('violations', [])
+                "violations": violations_with_category
             }
 
             # For backward compatibility with single-violation format
-            if entry['is_violation'] and entry['violations']:
-                first_violation = entry['violations'][0]
-                entry['issue_type'] = first_violation.get('issue_type', 'other')
+            if entry['is_violation'] and violations_with_category:
+                first_violation = violations_with_category[0]
+                entry['category'] = first_violation.get('category', 'other')
                 entry['rule_id'] = first_violation.get('rule_id', '')
                 entry['violation_reason'] = first_violation.get('violation_reason', '')
                 entry['suggestion'] = first_violation.get('suggestion', '')
@@ -470,7 +535,7 @@ def main():
             save_manifest_entry(args.output, entry)
 
             if entry['is_violation']:
-                violations_found += 1
+                total_violations += len(entry['violations'])
                 print(f"    Found {len(entry['violations'])} violation(s)")
             else:
                 print(f"    OK")
@@ -489,7 +554,7 @@ def main():
     print("\n" + "=" * 50)
     print("Audit Complete")
     print(f"Blocks processed: {blocks_processed}")
-    print(f"Violations found: {violations_found}")
+    print(f"Total violations: {total_violations}")
     print(f"Manifest saved to: {args.output}")
 
 

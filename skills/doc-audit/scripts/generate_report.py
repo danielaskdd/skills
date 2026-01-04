@@ -39,42 +39,6 @@ def load_manifest(file_path: str) -> list:
     return results
 
 
-def determine_severity(entry: dict) -> str:
-    """
-    Determine severity level for an entry.
-
-    Args:
-        entry: Audit result entry
-
-    Returns:
-        Severity string: 'high', 'medium', or 'low'
-    """
-    # Check if severity is explicitly set
-    if 'severity' in entry:
-        return entry['severity']
-
-    # Check violations list
-    violations = entry.get('violations', [])
-    if violations:
-        # Get highest severity from all violations
-        for v in violations:
-            if v.get('issue_type') in ['semantic_risk', 'logic', 'compliance']:
-                return 'high'
-        for v in violations:
-            if v.get('issue_type') in ['clarity', 'grammar']:
-                return 'medium'
-        return 'low'
-
-    # Default based on issue_type
-    issue_type = entry.get('issue_type', 'other')
-    if issue_type in ['semantic_risk', 'logic', 'compliance']:
-        return 'high'
-    elif issue_type in ['clarity', 'grammar']:
-        return 'medium'
-    else:
-        return 'low'
-
-
 def generate_report_data(manifest: list) -> dict:
     """
     Generate report data from manifest.
@@ -87,7 +51,6 @@ def generate_report_data(manifest: list) -> dict:
     """
     violations = []
     category_counts = Counter()
-    severity_counts = Counter()
 
     for entry in manifest:
         if not entry.get('is_violation', False):
@@ -97,53 +60,34 @@ def generate_report_data(manifest: list) -> dict:
         entry_violations = entry.get('violations', [])
         if entry_violations:
             for v in entry_violations:
-                issue_type = v.get('issue_type', 'other')
-                severity = v.get('severity')
-                if severity:
-                    severity = str(severity).lower()
-                if not severity:
-                    if issue_type in ['semantic_risk', 'logic', 'compliance']:
-                        severity = 'high'
-                    elif issue_type in ['clarity', 'grammar']:
-                        severity = 'medium'
-                    else:
-                        severity = 'low'
+                category = v.get('category', 'other')
 
                 violations.append({
                     'uuid': entry.get('uuid', ''),
                     'heading': entry.get('p_heading', ''),
                     'content': entry.get('p_content', ''),
-                    'issue_type': issue_type,
-                    'severity': severity,
+                    'category': category,
                     'rule_id': v.get('rule_id', ''),
                     'violation_reason': v.get('violation_reason', ''),
                     'suggestion': v.get('suggestion', '')
                 })
 
-                category_counts[issue_type] += 1
-                severity_counts[severity] += 1
+                category_counts[category] += 1
         else:
             # Single violation (backward compatibility)
-            issue_type = entry.get('issue_type', 'other')
-            severity = determine_severity(entry)
+            category = entry.get('category', entry.get('issue_type', 'other'))
 
             violations.append({
                 'uuid': entry.get('uuid', ''),
                 'heading': entry.get('p_heading', ''),
                 'content': entry.get('p_content', ''),
-                'issue_type': issue_type,
-                'severity': severity,
+                'category': category,
                 'rule_id': entry.get('rule_id', ''),
                 'violation_reason': entry.get('violation_reason', ''),
                 'suggestion': entry.get('suggestion', '')
             })
 
-            category_counts[issue_type] += 1
-            severity_counts[severity] += 1
-
-    # Sort violations by severity
-    severity_order = {'high': 0, 'medium': 1, 'low': 2}
-    violations.sort(key=lambda x: severity_order.get(x['severity'], 3))
+            category_counts[category] += 1
 
     return {
         'generated_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
@@ -151,7 +95,6 @@ def generate_report_data(manifest: list) -> dict:
         'violation_count': len(violations),
         'violations': violations,
         'category_counts': dict(category_counts),
-        'severity_counts': dict(severity_counts),
         'max_category_count': max(category_counts.values()) if category_counts else 0
     }
 
@@ -203,15 +146,14 @@ def render_report_simple(data: dict, trusted_html: bool = False) -> str:
     violations_html = ""
     for v in data['violations']:
         heading = maybe_escape(str(v['heading']))
-        issue_type = maybe_escape(str(v['issue_type']))
-        severity = maybe_escape(str(v['severity']))
+        category = maybe_escape(str(v['category']))
         violation_reason = maybe_escape(str(v['violation_reason']))
         content = maybe_escape(str(v['content'])[:200])
         suggestion = maybe_escape(str(v['suggestion']))
         violations_html += f"""
-        <div style="border: 1px solid #ddd; padding: 15px; margin: 10px 0; border-left: 4px solid {'#dc2626' if v['severity'] == 'high' else '#d97706'};">
+        <div style="border: 1px solid #ddd; padding: 15px; margin: 10px 0; border-left: 4px solid #2563eb;">
             <h4>{heading}</h4>
-            <p><strong>Type:</strong> {issue_type} | <strong>Severity:</strong> {severity}</p>
+            <p><strong>Category:</strong> {category}</p>
             <p><strong>Reason:</strong> {violation_reason}</p>
             <p><strong>Source:</strong> {content}...</p>
             {f"<p><strong>Suggestion:</strong> {suggestion}</p>" if v['suggestion'] else ""}
@@ -234,7 +176,6 @@ def render_report_simple(data: dict, trusted_html: bool = False) -> str:
     <div>
         <div class="stat">Total Blocks: {data['total_blocks']}</div>
         <div class="stat">Issues Found: {data['violation_count']}</div>
-        <div class="stat">High Severity: {data['severity_counts'].get('high', 0)}</div>
     </div>
     <h2>Issues</h2>
     {violations_html if violations_html else "<p>No issues found.</p>"}
@@ -314,7 +255,6 @@ def main():
     print("\n--- Summary ---")
     print(f"Total blocks: {data['total_blocks']}")
     print(f"Issues found: {data['violation_count']}")
-    print(f"By severity: {dict(data['severity_counts'])}")
     print(f"By category: {dict(data['category_counts'])}")
 
 
