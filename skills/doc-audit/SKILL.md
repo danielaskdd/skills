@@ -510,26 +510,28 @@ When no violations are found:
 doc-audit/
 ├── SKILL.md                    # This file
 ├── scripts/
-│   ├── setup_project_env.sh    # Environment setup script (NEW)
+│   ├── setup_project_env.sh    # Environment setup script
 │   ├── parse_rules.py          # Rule parsing
 │   ├── parse_document.py       # DOCX parsing (Aspose)
 │   ├── run_audit.py            # LLM audit execution
 │   └── generate_report.py      # Report generation
 └── assets/
-    ├── default_rules.json      # Default audit rules
-    └── report_template.html    # Jinja2 report template
+    ├── default_rules.json      # Default audit rules (source)
+    └── report_template.html    # Jinja2 report template (source)
 
-# Working directory (created by setup script)
+# Working directory (created by setup script - all work happens here)
 .claude-work/
-├── doc-audit/                  # Intermediate files
-│   ├── blocks.jsonl            # Parsed document blocks
-│   ├── manifest.jsonl          # Audit results
-│   └── custom_rules.json       # Custom rules (optional)
-├── venv/                       # Python virtual environment
-├── logs/                       # Operation logs
-├── env.sh                      # Environment activation script
-├── workflow-doc-audit.sh       # Convenience workflow script
-└── README-doc-audit.md         # Working directory documentation
+├── doc-audit/                     # All audit files centralized here
+│   ├── default_rules.json         # Default rules (copied from assets)
+│   ├── report_template.html       # Report template (copied from assets)
+│   ├── blocks.jsonl               # Parsed document blocks
+│   ├── manifest.jsonl             # Audit results
+│   └── custom_rules.json          # Custom rules (optional)
+├── venv/                          # Python virtual environment
+├── logs/                          # Operation logs
+├── env.sh                         # Environment activation script
+├── workflow-doc-audit.sh          # Convenience workflow script
+└── README-doc-audit.md            # Working directory documentation
 ```
 
 ## Limitations

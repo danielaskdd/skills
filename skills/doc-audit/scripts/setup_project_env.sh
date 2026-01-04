@@ -21,6 +21,17 @@ echo "1. Creating working directory structure..."
 mkdir -p "$DOC_AUDIT_DIR"
 mkdir -p "$WORK_DIR/logs"
 echo "   ✓ Directory created: $DOC_AUDIT_DIR/"
+
+# Copy default resources to working directory
+if [ ! -f "$DOC_AUDIT_DIR/default_rules.json" ]; then
+    cp "$SKILL_PATH/assets/default_rules.json" "$DOC_AUDIT_DIR/"
+    echo "   ✓ Copied default_rules.json to working directory"
+fi
+
+if [ ! -f "$DOC_AUDIT_DIR/report_template.html" ]; then
+    cp "$SKILL_PATH/assets/report_template.html" "$DOC_AUDIT_DIR/"
+    echo "   ✓ Copied report_template.html to working directory"
+fi
 echo
 
 # 2. Create Python virtual environment
@@ -99,7 +110,7 @@ if [ $# -lt 1 ]; then
 fi
 
 DOCUMENT="$1"
-RULES="${2:-$DOC_AUDIT_SKILL_PATH/assets/default_rules.json}"
+RULES="${2:-$SCRIPT_DIR/doc-audit/default_rules.json}"
 
 if [ ! -f "$DOCUMENT" ]; then
     echo "Error: Document not found: $DOCUMENT"
@@ -148,7 +159,7 @@ echo "Step 3: Generating report..."
 python3 "$DOC_AUDIT_SKILL_PATH/scripts/generate_report.py" \
     "$SCRIPT_DIR/doc-audit/manifest.jsonl" \
     --output "$OUTPUT_REPORT" \
-    --template "$DOC_AUDIT_SKILL_PATH/assets/report_template.html"
+    --template "$SCRIPT_DIR/doc-audit/report_template.html"
 echo
 
 echo "=========================================="
@@ -172,11 +183,13 @@ This directory is automatically created by Claude for document audit work.
 
 ```
 .claude-work/
-├── venv/              # Python virtual environment
-├── doc-audit/         # Intermediate audit files
-│   ├── blocks.jsonl   # Parsed document blocks
-│   ├── manifest.jsonl # Audit results
-│   └── rules.json     # Custom rules (optional)
+├── venv/                     # Python virtual environment
+├── doc-audit/                # Audit files
+│   ├── default_rules.json    # Default audit rules (copied from skill)
+│   ├── report_template.html  # Report template (copied from skill)
+│   ├── blocks.jsonl          # Parsed document blocks
+│   ├── manifest.jsonl        # Audit results
+│   └── custom_rules.json     # Custom rules (optional)
 ├── logs/              # Operation logs
 ├── env.sh             # Environment activation script
 ├── workflow-doc-audit.sh  # Convenience workflow script
@@ -207,17 +220,17 @@ source .claude-work/env.sh
 python skills/doc-audit/scripts/parse_document.py document.docx \
   --output .claude-work/doc-audit/blocks.jsonl
 
-# 3. Run audit (with default rules)
+# 3. Run audit (with default rules from working directory)
 python skills/doc-audit/scripts/run_audit.py \
   --document .claude-work/doc-audit/blocks.jsonl \
-  --rules skills/doc-audit/assets/default_rules.json \
+  --rules .claude-work/doc-audit/default_rules.json \
   --output .claude-work/doc-audit/manifest.jsonl
 
-# 4. Generate report
+# 4. Generate report (with template from working directory)
 python skills/doc-audit/scripts/generate_report.py \
   .claude-work/doc-audit/manifest.jsonl \
   --output document_audit_report.html \
-  --template skills/doc-audit/assets/report_template.html
+  --template .claude-work/doc-audit/report_template.html
 ```
 
 ## Custom Rules Workflow
@@ -325,7 +338,7 @@ pip install aspose-words jinja2 google-generativeai openai
 ```bash
 python skills/doc-audit/scripts/run_audit.py \
   --document .claude-work/doc-audit/blocks.jsonl \
-  --rules skills/doc-audit/assets/default_rules.json \
+  --rules .claude-work/doc-audit/default_rules.json \
   --output .claude-work/doc-audit/manifest.jsonl \
   --resume
 ```
