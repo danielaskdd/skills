@@ -57,7 +57,7 @@ echo
 
 # 4. Create environment setup script
 echo "4. Creating environment configuration..."
-cat > "$WORK_DIR/env.sh" << EOF
+cat > "$DOC_AUDIT_DIR/env.sh" << EOF
 #!/bin/bash
 # Activate virtual environment and set environment variables
 source "$VENV_DIR/bin/activate"
@@ -81,13 +81,13 @@ echo "  OpenAI Model: \$DOC_AUDIT_OPENAI_MODEL"
 echo "  API Keys: \${GOOGLE_API_KEY:+GOOGLE_API_KEY=set} \${OPENAI_API_KEY:+OPENAI_API_KEY=set}"
 EOF
 
-chmod +x "$WORK_DIR/env.sh"
-echo "   ✓ Environment script created: $WORK_DIR/env.sh"
+chmod +x "$DOC_AUDIT_DIR/env.sh"
+echo "   ✓ Environment script created: $DOC_AUDIT_DIR/env.sh"
 echo
 
 # 5. Create convenience workflow script
 echo "5. Creating convenience workflow script..."
-cat > "$WORK_DIR/workflow-doc-audit.sh" << 'EOF'
+cat > "$DOC_AUDIT_DIR/workflow.sh" << 'EOF'
 #!/bin/bash
 # Complete document audit workflow
 set -e
@@ -113,7 +113,7 @@ if [ $# -lt 1 ]; then
 fi
 
 DOCUMENT="$1"
-RULES="${2:-$SCRIPT_DIR/doc-audit/default_rules.json}"
+RULES="${2:-$SCRIPT_DIR/default_rules.json}"
 
 if [ ! -f "$DOCUMENT" ]; then
     echo "Error: Document not found: $DOCUMENT"
@@ -139,30 +139,30 @@ echo "Report: $OUTPUT_REPORT"
 echo
 
 # Clean previous intermediate files
-rm -f "$SCRIPT_DIR/doc-audit/blocks.jsonl"
-rm -f "$SCRIPT_DIR/doc-audit/manifest.jsonl"
+rm -f "$SCRIPT_DIR/blocks.jsonl"
+rm -f "$SCRIPT_DIR/manifest.jsonl"
 
 # Step 1: Parse document
 echo "Step 1: Parsing document..."
 python3 "$DOC_AUDIT_SKILL_PATH/scripts/parse_document.py" \
     "$DOCUMENT" \
-    --output "$SCRIPT_DIR/doc-audit/blocks.jsonl"
+    --output "$SCRIPT_DIR/blocks.jsonl"
 echo
 
 # Step 2: Run audit
 echo "Step 2: Running audit..."
 python3 "$DOC_AUDIT_SKILL_PATH/scripts/run_audit.py" \
-    --document "$SCRIPT_DIR/doc-audit/blocks.jsonl" \
+    --document "$SCRIPT_DIR/blocks.jsonl" \
     --rules "$RULES" \
-    --output "$SCRIPT_DIR/doc-audit/manifest.jsonl"
+    --output "$SCRIPT_DIR/manifest.jsonl"
 echo
 
 # Step 3: Generate report
 echo "Step 3: Generating report..."
 python3 "$DOC_AUDIT_SKILL_PATH/scripts/generate_report.py" \
-    "$SCRIPT_DIR/doc-audit/manifest.jsonl" \
+    "$SCRIPT_DIR/manifest.jsonl" \
     --output "$OUTPUT_REPORT" \
-    --template "$SCRIPT_DIR/doc-audit/report_template.html"
+    --template "$SCRIPT_DIR/report_template.html"
 echo
 
 echo "=========================================="
@@ -171,13 +171,13 @@ echo "Report: $OUTPUT_REPORT"
 echo "=========================================="
 EOF
 
-chmod +x "$WORK_DIR/workflow-doc-audit.sh"
-echo "   ✓ Workflow script created: $WORK_DIR/workflow-doc-audit.sh"
+chmod +x "$DOC_AUDIT_DIR/workflow.sh"
+echo "   ✓ Workflow script created: $DOC_AUDIT_DIR/workflow.sh"
 echo
 
 # 6. Create README
 echo "6. Creating documentation..."
-cat > "$WORK_DIR/README-doc-audit.md" << 'EOF'
+cat > "$DOC_AUDIT_DIR/README.md" << 'EOF'
 # Document Audit Working Directory
 
 This directory is automatically created by Claude for document audit work.
@@ -186,17 +186,17 @@ This directory is automatically created by Claude for document audit work.
 
 ```
 .claude-work/
-├── venv/                     # Python virtual environment
-├── doc-audit/                # Audit files
-│   ├── default_rules.json    # Default audit rules (copied from skill)
-│   ├── report_template.html  # Report template (copied from skill)
-│   ├── blocks.jsonl          # Parsed document blocks
-│   ├── manifest.jsonl        # Audit results
-│   └── custom_rules.json     # Custom rules (optional)
-├── logs/              # Operation logs
-├── env.sh             # Environment activation script
-├── workflow-doc-audit.sh  # Convenience workflow script
-└── README-doc-audit.md    # This file
+├── venv/                     # Python virtual environment (shared)
+├── logs/                     # Operation logs (shared)
+└── doc-audit/                # Document audit working directory
+    ├── env.sh                # Environment activation script
+    ├── workflow.sh           # Convenience workflow script
+    ├── README.md             # This file
+    ├── default_rules.json    # Default audit rules (copied from skill)
+    ├── report_template.html  # Report template (copied from skill)
+    ├── blocks.jsonl          # Parsed document blocks
+    ├── manifest.jsonl        # Audit results
+    └── custom_rules.json     # Custom rules (optional)
 ```
 
 ## Quick Start
@@ -205,10 +205,10 @@ This directory is automatically created by Claude for document audit work.
 
 ```bash
 # Use default rules
-./.claude-work/workflow-doc-audit.sh document.docx
+./.claude-work/doc-audit/workflow.sh document.docx
 
 # Use custom rules
-./.claude-work/workflow-doc-audit.sh document.docx custom_rules.json
+./.claude-work/doc-audit/workflow.sh document.docx custom_rules.json
 ```
 
 The audit report will be saved as `<document>_audit_report.html` in the same directory as the source document.
@@ -217,7 +217,7 @@ The audit report will be saved as `<document>_audit_report.html` in the same dir
 
 ```bash
 # 1. Activate environment
-source .claude-work/env.sh
+source .claude-work/doc-audit/env.sh
 
 # 2. Parse document
 python skills/doc-audit/scripts/parse_document.py document.docx \
@@ -249,7 +249,7 @@ python skills/doc-audit/scripts/parse_rules.py \
   --output .claude-work/doc-audit/custom_rules.json
 
 # Run audit with custom rules
-./.claude-work/workflow-doc-audit.sh document.docx .claude-work/doc-audit/custom_rules.json
+./.claude-work/doc-audit/workflow.sh document.docx .claude-work/doc-audit/custom_rules.json
 ```
 
 ## Environment Variables
@@ -275,9 +275,9 @@ export DOC_AUDIT_OPENAI_MODEL=gpt-5.2           # Default OpenAI model
 
 ## Changing Default Models
 
-The default LLM models are configured in `.claude-work/env.sh`. To use different models:
+The default LLM models are configured in `.claude-work/doc-audit/env.sh`. To use different models:
 
-1. **Edit `.claude-work/env.sh`** - Change the model environment variables:
+1. **Edit `.claude-work/doc-audit/env.sh`** - Change the model environment variables:
    ```bash
    export DOC_AUDIT_GEMINI_MODEL="gemini-2.5-flash"
    export DOC_AUDIT_OPENAI_MODEL="gpt-4o-mini"
@@ -286,7 +286,7 @@ The default LLM models are configured in `.claude-work/env.sh`. To use different
 2. **Or set before activating** - Export variables before sourcing env.sh:
    ```bash
    export DOC_AUDIT_GEMINI_MODEL="gemini-2.0-flash-exp"
-   source .claude-work/env.sh
+   source .claude-work/doc-audit/env.sh
    ```
 
 All scripts (`parse_rules.py` and `run_audit.py`) will automatically use the configured models.
@@ -345,7 +345,7 @@ If you see an error like "json_schema is not supported", ensure you're using a c
 ```bash
 # Set your API key before running
 export GOOGLE_API_KEY=your_key_here
-source .claude-work/env.sh
+source .claude-work/doc-audit/env.sh
 ```
 
 **Error: Package not installed**
@@ -378,7 +378,7 @@ To completely remove the environment:
 rm -rf .claude-work/
 ```
 EOF
-echo "   ✓ README-doc-audit.md created"
+echo "   ✓ README.md created"
 echo
 
 echo "=========================================="
@@ -391,10 +391,10 @@ echo "   export GOOGLE_API_KEY=your_key_here"
 echo "   export OPENAI_API_KEY=your_key_here"
 echo
 echo "2. Run audit in one step:"
-echo "   ./.claude-work/workflow-doc-audit.sh document.docx"
+echo "   ./.claude-work/doc-audit/workflow.sh document.docx"
 echo
 echo "Or activate environment manually:"
-echo "   source ./.claude-work/env.sh"
+echo "   source ./.claude-work/doc-audit/env.sh"
 echo
-echo "For detailed instructions, see: .claude-work/README-doc-audit.md"
+echo "For detailed instructions, see: .claude-work/doc-audit/README.md"
 echo

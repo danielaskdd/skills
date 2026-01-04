@@ -28,14 +28,13 @@ Before running any audit, set up the project environment:
 
 ```bash
 bash skills/doc-audit/scripts/setup_project_env.sh
-source .claude-work/env.sh
+source .claude-work/doc-audit/env.sh
 ```
 
 This creates:
-- `.claude-work/doc-audit/` - Directory for intermediate files (blocks, manifest)
-- `.claude-work/venv/` - Python virtual environment with all dependencies
-- `.claude-work/env.sh` - Environment activation script
-- `.claude-work/workflow-doc-audit.sh` - Convenience workflow script
+- `.claude-work/doc-audit/` - Directory for all doc-audit files (env, scripts, intermediate files)
+- `.claude-work/venv/` - Python virtual environment (shared across skills)
+- `.claude-work/logs/` - Operation logs (shared across skills)
 
 **Note:** User should have already set `GOOGLE_API_KEY` or `OPENAI_API_KEY` environment variable to choose their preferred LLM provider.
 
@@ -203,10 +202,10 @@ Use the convenience script for the complete audit workflow:
 bash skills/doc-audit/scripts/setup_project_env.sh
 
 # Run complete audit with default rules (assumes API key already set)
-./.claude-work/workflow-doc-audit.sh /path/to/contract.docx
+./.claude-work/doc-audit/workflow.sh /path/to/contract.docx
 
 # With custom rules
-./.claude-work/workflow-doc-audit.sh /path/to/contract.docx .claude-work/doc-audit/custom_rules.json
+./.claude-work/doc-audit/workflow.sh /path/to/contract.docx .claude-work/doc-audit/custom_rules.json
 ```
 
 **Output:** Report saved to `/path/to/contract_audit_report.html`
@@ -219,14 +218,13 @@ bash skills/doc-audit/scripts/setup_project_env.sh
 
 ```bash
 bash skills/doc-audit/scripts/setup_project_env.sh
-source .claude-work/env.sh
+source .claude-work/doc-audit/env.sh
 ```
 
 This creates:
-- `.claude-work/doc-audit/` - Intermediate files directory
-- `.claude-work/venv/` - Python virtual environment
-- `.claude-work/env.sh` - Environment activation script
-- `.claude-work/workflow-doc-audit.sh` - Convenience workflow script
+- `.claude-work/doc-audit/` - All doc-audit files (env, scripts, intermediate files)
+- `.claude-work/venv/` - Python virtual environment (shared)
+- `.claude-work/logs/` - Operation logs (shared)
 
 **Prerequisites:** User should have `GOOGLE_API_KEY` or `OPENAI_API_KEY` environment variable set.
 
@@ -535,17 +533,17 @@ doc-audit/
 
 # Working directory (created by setup script - all work happens here)
 .claude-work/
-├── doc-audit/                     # All audit files centralized here
-│   ├── default_rules.json         # Default rules (copied from assets)
-│   ├── report_template.html       # Report template (copied from assets)
-│   ├── blocks.jsonl               # Parsed document blocks
-│   ├── manifest.jsonl             # Audit results
-│   └── custom_rules.json          # Custom rules (optional)
-├── venv/                          # Python virtual environment
-├── logs/                          # Operation logs
-├── env.sh                         # Environment activation script
-├── workflow-doc-audit.sh          # Convenience workflow script
-└── README-doc-audit.md            # Working directory documentation
+├── venv/                          # Python virtual environment (shared across skills)
+├── logs/                          # Operation logs (shared across skills)
+└── doc-audit/                     # Document audit working directory
+    ├── env.sh                     # Environment activation script
+    ├── workflow.sh                # Convenience workflow script
+    ├── README.md                  # Working directory documentation
+    ├── default_rules.json         # Default rules (copied from assets)
+    ├── report_template.html       # Report template (copied from assets)
+    ├── blocks.jsonl               # Parsed document blocks
+    ├── manifest.jsonl             # Audit results
+    └── custom_rules.json          # Custom rules (optional)
 ```
 
 ## Limitations
