@@ -177,7 +177,7 @@ Each rule must have:
   You may also use custom categories if they better fit the rule type.
 - examples: Optional object with "violation" and "correction" examples
 
-Return a valid JSON array of the complete merged rules.
+Return a valid JSON object with a "rules" array containing the complete merged rules.
 """
             response = client.chat.completions.create(
                 model=model_name,

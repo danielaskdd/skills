@@ -68,7 +68,7 @@ export PYTHONPATH="\$DOC_AUDIT_SKILL_PATH:\$PYTHONPATH"
 # Change these to use different models across all scripts
 export DOC_AUDIT_GEMINI_MODEL="\${DOC_AUDIT_GEMINI_MODEL:-gemini-3-flash}"
 
-# OpenAI Model Requirement: Must use gpt-4o-2024-08-06 or later (or gpt-4o-mini)
+# OpenAI Model Requirement: Must use gpt-4o-2024-08-06 or later, gpt-4o-mini, or gpt-5.x
 # Older models like gpt-4-turbo, gpt-4, gpt-3.5-turbo do NOT support json_schema response format
 export DOC_AUDIT_OPENAI_MODEL="\${DOC_AUDIT_OPENAI_MODEL:-gpt-5.2}"
 
@@ -320,7 +320,7 @@ The audit process requires an LLM API. Supported providers:
 2. **OpenAI**
    - Install: `pip install openai`
    - Set: `export OPENAI_API_KEY=...`
-   - **Model Requirement:** Must use `gpt-4o-2024-08-06` or later, `gpt-4o-mini`, or `gpt-4o`
+   - **Model Requirement:** Must use `gpt-4o-2024-08-06` or later, `gpt-4o-mini`, `gpt-4o`, or `gpt-5.x`
    - Older models (gpt-4-turbo, gpt-4, gpt-3.5-turbo) do NOT support the required `json_schema` format
 
 ### OpenAI Model Compatibility
@@ -331,6 +331,7 @@ The scripts use OpenAI's Structured Outputs feature, which requires specific mod
 - `gpt-4o-2024-08-06` or later
 - `gpt-4o-mini`
 - `gpt-4o` (latest)
+- `gpt-5.x` series (e.g., `gpt-5.2`)
 
 ❌ **NOT Supported:**
 - `gpt-4-turbo`

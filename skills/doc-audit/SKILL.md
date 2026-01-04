@@ -397,6 +397,7 @@ When using OpenAI, the scripts use Structured Outputs (`json_schema` response fo
 - ✅ `gpt-4o-2024-08-06` or later
 - ✅ `gpt-4o-mini` or later
 - ✅ `gpt-4o` (latest)
+- ✅ `gpt-5.x` series (e.g., `gpt-5.2`)
 
 Older models are **NOT supported** and will cause API errors:
 - ❌ `gpt-4-turbo`
@@ -415,7 +416,7 @@ To use different models, edit `.claude-work/env.sh` before running scripts:
 ```bash
 # Example: Use a different model across all scripts
 export DOC_AUDIT_GEMINI_MODEL="gemini-2.0-flash-exp"
-export DOC_AUDIT_OPENAI_MODEL="gpt-4o"
+export DOC_AUDIT_OPENAI_MODEL="gpt-4o"  # or gpt-5.2, gpt-4o-mini, etc.
 ```
 
 ## Data Structures
@@ -443,9 +444,11 @@ export DOC_AUDIT_OPENAI_MODEL="gpt-4o"
   "heading": "2.1 Penalty Clause",
   "content": "If Party B delays payment, they shall pay approximately 1% of the total amount as compensation.",
   "type": "text",
-  "parent_headings": ["Chapter 2 Contract Terms", "2.1 Penalty Clause"]
+  "parent_headings": ["Chapter 2 Contract Terms"]
 }
 ```
+
+**Note:** `parent_headings` contains only the ancestor headings hierarchy, not the current heading (which is in the `heading` field).
 
 ### Audit Result Format
 

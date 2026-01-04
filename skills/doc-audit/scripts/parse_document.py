@@ -105,8 +105,8 @@ def extract_audit_blocks(file_path: str) -> list:
 
                     # Update heading stack based on outline level
                     level = int(outline_level) if outline_level != aw.OutlineLevel.BODY_TEXT else 0
-                    # Truncate stack to current level
-                    current_heading_stack = current_heading_stack[:level]
+                    # Truncate stack to parent level (current level - 1)
+                    current_heading_stack = current_heading_stack[:level-1]
                     current_heading_stack.append(full_text)
                     current_heading = full_text
                 else:
