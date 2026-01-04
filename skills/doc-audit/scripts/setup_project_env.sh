@@ -53,10 +53,17 @@ source "$VENV_DIR/bin/activate"
 export DOC_AUDIT_SKILL_PATH="$SKILL_PATH"
 export PYTHONPATH="\$DOC_AUDIT_SKILL_PATH:\$PYTHONPATH"
 
+# Default LLM Model Configuration
+# Change these to use different models across all scripts
+export DOC_AUDIT_GEMINI_MODEL="\${DOC_AUDIT_GEMINI_MODEL:-gemini-3-flash}"
+export DOC_AUDIT_OPENAI_MODEL="\${DOC_AUDIT_OPENAI_MODEL:-gpt-5.2}"
+
 # Show current environment
 echo "Doc-Audit Environment Activated"
 echo "  Skill Path: \$DOC_AUDIT_SKILL_PATH"
 echo "  Python: \$(which python3)"
+echo "  Gemini Model: \$DOC_AUDIT_GEMINI_MODEL"
+echo "  OpenAI Model: \$DOC_AUDIT_OPENAI_MODEL"
 echo "  API Keys: \${GOOGLE_API_KEY:+GOOGLE_API_KEY=set} \${OPENAI_API_KEY:+OPENAI_API_KEY=set}"
 EOF
 
@@ -234,7 +241,8 @@ python skills/doc-audit/scripts/parse_rules.py \
 The following environment variables can be set:
 
 ```bash
-# For Gemini (recommended)
+# API Keys (required - choose one or both)
+# For Gemini (recommended - used by default if both are set)
 export GOOGLE_API_KEY=your_api_key
 
 # For OpenAI
@@ -242,7 +250,30 @@ export OPENAI_API_KEY=your_api_key
 
 # Custom skill path (optional)
 export DOC_AUDIT_SKILL_PATH=/path/to/skills/doc-audit
+
+# Model Configuration (optional - already set in env.sh)
+# Override these to use different models across all scripts
+export DOC_AUDIT_GEMINI_MODEL=gemini-3-flash    # Default Gemini model
+export DOC_AUDIT_OPENAI_MODEL=gpt-5.2           # Default OpenAI model
 ```
+
+## Changing Default Models
+
+The default LLM models are configured in `.claude-work/env.sh`. To use different models:
+
+1. **Edit `.claude-work/env.sh`** - Change the model environment variables:
+   ```bash
+   export DOC_AUDIT_GEMINI_MODEL="gemini-2.0-flash-exp"
+   export DOC_AUDIT_OPENAI_MODEL="gpt-4o"
+   ```
+
+2. **Or set before activating** - Export variables before sourcing env.sh:
+   ```bash
+   export DOC_AUDIT_GEMINI_MODEL="gemini-2.0-flash-exp"
+   source .claude-work/env.sh
+   ```
+
+All scripts (`parse_rules.py` and `run_audit.py`) will automatically use the configured models.
 
 ## Output Files
 

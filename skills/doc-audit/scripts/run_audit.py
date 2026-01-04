@@ -242,18 +242,21 @@ Return ONLY the JSON object, no other text."""
     return prompt
 
 
-def audit_block_gemini(block: dict, rules: list, model_name: str = "gemini-3-flash") -> dict:
+def audit_block_gemini(block: dict, rules: list, model_name: str = None) -> dict:
     """
     Audit a text block using Google Gemini with strict JSON mode.
 
     Args:
         block: Text block to audit
         rules: Audit rules to apply
-        model_name: Gemini model to use
+        model_name: Gemini model to use (uses DOC_AUDIT_GEMINI_MODEL env var if None)
 
     Returns:
         Audit result dictionary
     """
+    if model_name is None:
+        model_name = os.getenv("DOC_AUDIT_GEMINI_MODEL", "gemini-3-flash")
+    
     prompt = build_audit_prompt(block, rules)
 
     model = genai.GenerativeModel(model_name)
@@ -270,18 +273,21 @@ def audit_block_gemini(block: dict, rules: list, model_name: str = "gemini-3-fla
     return result
 
 
-def audit_block_openai(block: dict, rules: list, model_name: str = "gpt-5.2") -> dict:
+def audit_block_openai(block: dict, rules: list, model_name: str = None) -> dict:
     """
     Audit a text block using OpenAI with strict JSON mode.
 
     Args:
         block: Text block to audit
         rules: Audit rules to apply
-        model_name: OpenAI model to use
+        model_name: OpenAI model to use (uses DOC_AUDIT_OPENAI_MODEL env var if None)
 
     Returns:
         Audit result dictionary
     """
+    if model_name is None:
+        model_name = os.getenv("DOC_AUDIT_OPENAI_MODEL", "gpt-5.2")
+    
     prompt = build_audit_prompt(block, rules)
 
     client = openai.OpenAI()
@@ -421,9 +427,9 @@ def main():
     if model_name == "auto":
         if HAS_GEMINI and os.getenv("GOOGLE_API_KEY"):
             use_gemini = True
-            model_name = "gemini-3-flash"
+            model_name = os.getenv("DOC_AUDIT_GEMINI_MODEL", "gemini-3-flash")
         elif HAS_OPENAI and os.getenv("OPENAI_API_KEY"):
-            model_name = "gpt-5.2"
+            model_name = os.getenv("DOC_AUDIT_OPENAI_MODEL", "gpt-5.2")
         else:
             print("Error: No API key found. Set GOOGLE_API_KEY or OPENAI_API_KEY", file=sys.stderr)
             sys.exit(1)

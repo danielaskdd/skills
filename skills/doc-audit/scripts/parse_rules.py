@@ -91,7 +91,9 @@ def merge_rules_with_llm(base_rules: list, input_text: str, api_key: Optional[st
         try:
             import google.generativeai as genai
             genai.configure(api_key=google_key)
-            model = genai.GenerativeModel("gemini-3-flash")
+            # Use environment variable for model name, fallback to default
+            model_name = os.getenv("DOC_AUDIT_GEMINI_MODEL", "gemini-3-flash")
+            model = genai.GenerativeModel(model_name)
 
             prompt = f"""You are an audit rule expert. Merge these existing rules with user's new requirements.
 
@@ -141,6 +143,8 @@ Return a valid JSON array of the complete merged rules.
         try:
             import openai
             client = openai.OpenAI(api_key=openai_key)
+            # Use environment variable for model name, fallback to default
+            model_name = os.getenv("DOC_AUDIT_OPENAI_MODEL", "gpt-5.2")
 
             prompt = f"""You are an audit rule expert. Merge these existing rules with user's new requirements.
 
@@ -169,7 +173,7 @@ Each rule must have:
 Return a valid JSON array of the complete merged rules.
 """
             response = client.chat.completions.create(
-                model="gpt-5.2",
+                model=model_name,
                 messages=[{"role": "user", "content": prompt}],
                 response_format={
                     "type": "json_schema",
