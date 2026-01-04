@@ -241,7 +241,7 @@ python skills/doc-audit/scripts/generate_report.py \
 If you need custom audit rules:
 
 ```bash
-source .claude-work/env.sh
+source .claude-work/doc-audit/env.sh
 
 # Generate custom rules
 python skills/doc-audit/scripts/parse_rules.py \

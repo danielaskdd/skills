@@ -44,7 +44,7 @@ This creates:
 
 **Path A: Use Default Rules (Simple)**
 - User only requests "audit [filename]" without specific requirements
-- **Skip rule generation** - use `assets/default_rules.json` directly
+- **Skip rule generation** - use `.claude-work/doc-audit/default_rules.json` (copied from `assets/default_rules.json` during setup)
 - Proceed immediately to Phase 2
 
 **Path B: Custom Rules (Iterative)**
@@ -114,7 +114,7 @@ python scripts/parse_rules.py \
 **Key Parameters:**
 - `--input <text>`: User requirements or modification requests (required unless using --file). If both `--input` and `--file` are omitted, the script outputs base rules unchanged (LLM deps/API key are still required by current validation).
 - `--file <path>`: Read requirements from file instead of --input
-- `--base-rules <file>`: Base rules to merge with (default: auto-detects `assets/default_rules.json`)
+- `--base-rules <file>`: Base rules to merge with (default: auto-detects `.claude-work/doc-audit/default_rules.json`, then falls back to `assets/default_rules.json`)
 - `--output <file>`: Output rules file (default: rules.json)
 - `--no-base`: Start from scratch without base rules
 - `--api-key <key>`: LLM API key (optional, uses GOOGLE_API_KEY or OPENAI_API_KEY by default)
@@ -250,7 +250,7 @@ python skills/doc-audit/scripts/parse_document.py /path/to/contract.docx \
 ```bash
 python skills/doc-audit/scripts/run_audit.py \
   --document .claude-work/doc-audit/blocks.jsonl \
-  --rules skills/doc-audit/assets/default_rules.json \
+  --rules .claude-work/doc-audit/default_rules.json \
   --output .claude-work/doc-audit/manifest.jsonl
 ```
 

@@ -41,6 +41,26 @@ def generate_content_uuid(heading: str, content: str, block_index: int) -> str:
     return hashlib.sha256(combined.encode('utf-8')).hexdigest()[:32]
 
 
+def normalize_heading_level(outline_level: aw.OutlineLevel) -> int:
+    """
+    Normalize Aspose outline level to a 1-based heading level.
+
+    Aspose uses an enum for outline levels that may be 0-based (Level1 == 0)
+    or 1-based (Level1 == 1) depending on binding. This helper normalizes
+    to 1-based levels to avoid off-by-one errors when building the heading stack.
+    """
+    try:
+        level_value = int(outline_level)
+    except (TypeError, ValueError):
+        level_value = int(outline_level.value) if hasattr(outline_level, "value") else 1
+
+    if level_value <= 0:
+        return 1
+    if level_value > 9:
+        return 9
+    return level_value
+
+
 def extract_audit_blocks(file_path: str) -> list:
     """
     Extract text blocks from a DOCX file for auditing.
@@ -103,10 +123,10 @@ def extract_audit_blocks(file_path: str) -> list:
                         })
                         current_content = []
 
-                    # Update heading stack based on outline level
-                    level = int(outline_level) if outline_level != aw.OutlineLevel.BODY_TEXT else 0
+                    # Update heading stack based on outline level (normalized to 1-based)
+                    level = normalize_heading_level(outline_level)
                     # Truncate stack to parent level (current level - 1)
-                    current_heading_stack = current_heading_stack[:level-1]
+                    current_heading_stack = current_heading_stack[:max(level - 1, 0)]
                     current_heading_stack.append(full_text)
                     current_heading = full_text
                 else:
