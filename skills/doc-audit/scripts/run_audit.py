@@ -186,32 +186,27 @@ def format_rules_for_prompt(rules: list) -> str:
     return "\n".join(lines)
 
 
-def build_audit_prompt(block: dict, rules: list) -> str:
+def build_system_prompt(rules: list) -> str:
     """
-    Build the complete audit prompt for LLM.
+    Build the system prompt containing static instructions and rules.
+    This can be cached by the LLM across multiple block audits.
 
     Args:
-        block: Text block to audit
         rules: Audit rules to apply
 
     Returns:
-        Complete prompt string
+        System prompt string
     """
-    block_text = format_block_for_prompt(block)
     rules_text = format_rules_for_prompt(rules)
 
-    prompt = f"""You are a professional document auditor. Analyze the following text block and check for violations of the given rules.
-
-{block_text}
-
----
+    system_prompt = f"""You are a professional document auditor. Your task is to analyze text blocks and check for violations of audit rules.
 
 {rules_text}
 
 ---
 
 Instructions:
-1. Check if this text block violates ANY of the rules above
+1. Check if the provided text block violates ANY of the rules above
 2. For each violation found, provide:
    - The rule ID that was violated
    - The specific text that violates the rule
@@ -239,16 +234,32 @@ If there are no violations, return:
 
 Return ONLY the JSON object, no other text."""
 
-    return prompt
+    return system_prompt
 
 
-def audit_block_gemini(block: dict, rules: list, model_name: str = None) -> dict:
+def build_user_prompt(block: dict) -> str:
+    """
+    Build the user prompt containing the dynamic block content to audit.
+
+    Args:
+        block: Text block to audit
+
+    Returns:
+        User prompt string
+    """
+    block_text = format_block_for_prompt(block)
+    return f"""Analyze the following text block for rule violations:
+
+{block_text}"""
+
+
+def audit_block_gemini(block: dict, system_prompt: str, model_name: str = None) -> dict:
     """
     Audit a text block using Google Gemini with strict JSON mode.
 
     Args:
         block: Text block to audit
-        rules: Audit rules to apply
+        system_prompt: Cached system prompt with rules and instructions
         model_name: Gemini model to use (uses DOC_AUDIT_GEMINI_MODEL env var if None)
 
     Returns:
@@ -257,11 +268,14 @@ def audit_block_gemini(block: dict, rules: list, model_name: str = None) -> dict
     if model_name is None:
         model_name = os.getenv("DOC_AUDIT_GEMINI_MODEL", "gemini-3-flash")
     
-    prompt = build_audit_prompt(block, rules)
+    user_prompt = build_user_prompt(block)
 
-    model = genai.GenerativeModel(model_name)
+    model = genai.GenerativeModel(
+        model_name,
+        system_instruction=system_prompt
+    )
     response = model.generate_content(
-        prompt,
+        user_prompt,
         generation_config=genai.GenerationConfig(
             response_mime_type="application/json",
             response_schema=AUDIT_RESULT_SCHEMA
@@ -273,13 +287,13 @@ def audit_block_gemini(block: dict, rules: list, model_name: str = None) -> dict
     return result
 
 
-def audit_block_openai(block: dict, rules: list, model_name: str = None) -> dict:
+def audit_block_openai(block: dict, system_prompt: str, model_name: str = None) -> dict:
     """
     Audit a text block using OpenAI with strict JSON mode.
 
     Args:
         block: Text block to audit
-        rules: Audit rules to apply
+        system_prompt: Cached system prompt with rules and instructions
         model_name: OpenAI model to use (uses DOC_AUDIT_OPENAI_MODEL env var if None)
 
     Returns:
@@ -288,12 +302,15 @@ def audit_block_openai(block: dict, rules: list, model_name: str = None) -> dict
     if model_name is None:
         model_name = os.getenv("DOC_AUDIT_OPENAI_MODEL", "gpt-5.2")
     
-    prompt = build_audit_prompt(block, rules)
+    user_prompt = build_user_prompt(block)
 
     client = openai.OpenAI()
     response = client.chat.completions.create(
         model=model_name,
-        messages=[{"role": "user", "content": prompt}],
+        messages=[
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt}
+        ],
         temperature=0.2,
         response_format={
             "type": "json_schema",
@@ -466,6 +483,10 @@ def main():
     # Build rule category mapping
     rule_category_map = build_rule_category_map(rules)
 
+    # Build system prompt once (it will be cached by the LLM for all blocks)
+    system_prompt = build_system_prompt(rules)
+    print(f"System prompt built ({len(system_prompt)} chars, will be cached)")
+
     # Handle resume
     completed_uuids = set()
     if args.resume and Path(args.output).exists():
@@ -498,16 +519,17 @@ def main():
         print(f"[{block_idx+1}/{len(blocks)}] Auditing: {block.get('heading', 'Unknown')[:50]}...")
 
         if args.dry_run:
-            prompt = build_audit_prompt(block, rules)
-            print(f"\n--- Prompt ---\n{prompt[:500]}...")
+            user_prompt = build_user_prompt(block)
+            print(f"\n--- System Prompt ---\n{system_prompt[:300]}...\n")
+            print(f"--- User Prompt ---\n{user_prompt[:300]}...")
             continue
 
         try:
-            # Call LLM
+            # Call LLM with cached system prompt
             if use_gemini:
-                result = audit_block_gemini(block, rules, model_name)
+                result = audit_block_gemini(block, system_prompt, model_name)
             else:
-                result = audit_block_openai(block, rules, model_name)
+                result = audit_block_openai(block, system_prompt, model_name)
 
             # Add category to each violation based on rule_id
             violations_with_category = []
