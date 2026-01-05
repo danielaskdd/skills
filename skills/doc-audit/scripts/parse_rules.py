@@ -40,6 +40,27 @@ RULES_ARRAY_SCHEMA = {
 }
 
 
+def renumber_rules(rules: list) -> list:
+    """
+    Renumber rules with sequential IDs in format RXXX.
+    
+    This ensures no duplicate IDs and consistent formatting
+    regardless of what the LLM returns.
+    
+    Args:
+        rules: List of rule dictionaries
+    
+    Returns:
+        List of rules with renumbered IDs (R001, R002, ...)
+    """
+    renumbered = []
+    for idx, rule in enumerate(rules, start=1):
+        new_rule = rule.copy()
+        new_rule['id'] = f"R{idx:03d}"
+        renumbered.append(new_rule)
+    return renumbered
+
+
 def load_base_rules(base_rules_path: Optional[str] = None) -> list:
     """
     Load base rules from file.
@@ -374,6 +395,9 @@ def main():
     else:
         # Use LLM to merge base rules with user requirements
         all_rules = merge_rules_with_llm(base_rules, input_text, args.api_key)
+
+    # Renumber rules to ensure consistent RXXX format and avoid duplicates
+    all_rules = renumber_rules(all_rules)
 
     # Output
     output_data = {
