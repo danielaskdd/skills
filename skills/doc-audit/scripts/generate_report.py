@@ -68,6 +68,7 @@ def generate_report_data(manifest: list) -> dict:
                     'content': entry.get('p_content', ''),
                     'category': category,
                     'rule_id': v.get('rule_id', ''),
+                    'violation_text': v.get('violation_text', ''),
                     'violation_reason': v.get('violation_reason', ''),
                     'suggestion': v.get('suggestion', '')
                 })
@@ -83,6 +84,7 @@ def generate_report_data(manifest: list) -> dict:
                 'content': entry.get('p_content', ''),
                 'category': category,
                 'rule_id': entry.get('rule_id', ''),
+                'violation_text': entry.get('violation_text', ''),
                 'violation_reason': entry.get('violation_reason', ''),
                 'suggestion': entry.get('suggestion', '')
             })

@@ -198,6 +198,21 @@
             font-size: 1rem;
         }
 
+        .issue-number {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 28px;
+            height: 28px;
+            padding: 0 0.5rem;
+            background: var(--primary);
+            color: white;
+            border-radius: 14px;
+            font-size: 0.875rem;
+            font-weight: 600;
+            margin-right: 0.75rem;
+        }
+
         .issue-badges {
             display: flex;
             gap: 0.5rem;
@@ -237,8 +252,56 @@
             white-space: pre-wrap;
             word-break: break-word;
             border: 1px solid var(--gray-200);
-            max-height: 200px;
-            overflow-y: auto;
+            position: relative;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .source-text.collapsed {
+            max-height: 3.2em;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .source-text.collapsed::after {
+            content: ' ▼';
+            color: var(--primary);
+            font-size: 0.75rem;
+            margin-left: 0.5rem;
+        }
+
+        .source-text.expanded {
+            max-height: none;
+            white-space: pre-wrap;
+        }
+
+        .source-text.expanded::after {
+            content: ' ▲';
+            color: var(--primary);
+            font-size: 0.75rem;
+            margin-left: 0.5rem;
+            position: absolute;
+            right: 1rem;
+            top: 0.5rem;
+        }
+
+        .source-text:hover {
+            background: var(--gray-100);
+            border-color: var(--primary);
+        }
+
+        .violation-text {
+            background: #fef2f2;
+            padding: 1rem;
+            border-radius: 8px;
+            font-family: 'SF Mono', 'Fira Code', Consolas, monospace;
+            font-size: 0.875rem;
+            white-space: pre-wrap;
+            word-break: break-word;
+            border: 1px solid #fecaca;
+            border-left: 3px solid var(--danger);
+            color: var(--gray-700);
         }
 
         .reason-text {
@@ -416,6 +479,7 @@
                 <div class="issue">
                     <div class="issue-header">
                         <div>
+                            <span class="issue-number">{{ loop.index }}</span>
                             <span class="issue-title">{{ v.heading }}</span>
                         </div>
                         <div class="issue-badges">
@@ -426,8 +490,15 @@
 
                     <div class="issue-content">
                         <label>原文内容</label>
-                        <div class="source-text">{{ v.content[:500] }}{% if v.content|length > 500 %}...{% endif %}</div>
+                        <div class="source-text collapsed" onclick="toggleExpand(this)">{{ v.content }}</div>
                     </div>
+
+                    {% if v.violation_text %}
+                    <div class="issue-content">
+                        <label>违规文本</label>
+                        <div class="violation-text">{{ v.violation_text }}</div>
+                    </div>
+                    {% endif %}
 
                     <div class="issue-content">
                         <label>违规原因</label>
@@ -457,5 +528,16 @@
         </footer>
     </div>
 
+    <script>
+        function toggleExpand(element) {
+            if (element.classList.contains('collapsed')) {
+                element.classList.remove('collapsed');
+                element.classList.add('expanded');
+            } else {
+                element.classList.remove('expanded');
+                element.classList.add('collapsed');
+            }
+        }
+    </script>
 </body>
 </html>
