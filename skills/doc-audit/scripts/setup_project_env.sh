@@ -23,15 +23,10 @@ mkdir -p "$WORK_DIR/logs"
 echo "   ✓ Directory created: $DOC_AUDIT_DIR/"
 
 # Copy default resources to working directory
-if [ ! -f "$DOC_AUDIT_DIR/default_rules.json" ]; then
-    cp "$SKILL_PATH/assets/default_rules.json" "$DOC_AUDIT_DIR/"
-    echo "   ✓ Copied default_rules.json to working directory"
-fi
-
-if [ ! -f "$DOC_AUDIT_DIR/report_template.html" ]; then
-    cp "$SKILL_PATH/assets/report_template.html" "$DOC_AUDIT_DIR/"
-    echo "   ✓ Copied report_template.html to working directory"
-fi
+cp "$SKILL_PATH/assets/default_rules.json" "$DOC_AUDIT_DIR/"
+echo "   ✓ Copied default_rules.json to working directory"
+cp "$SKILL_PATH/assets/report_template.html" "$DOC_AUDIT_DIR/"
+echo "   ✓ Copied report_template.html to working directory"
 echo
 
 # 2. Create Python virtual environment

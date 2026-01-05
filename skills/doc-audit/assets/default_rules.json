@@ -75,16 +75,6 @@
     },
     {
       "id": "R008",
-      "description": "Check for undefined technical terms or acronyms",
-      "severity": "low",
-      "category": "clarity",
-      "examples": {
-        "violation": "The system must comply with GDPR and SOC2 requirements.",
-        "correction": "The system must comply with GDPR (General Data Protection Regulation) and SOC2 (Service Organization Control 2) requirements."
-      }
-    },
-    {
-      "id": "R009",
       "description": "Check for passive voice that obscures responsibility",
       "severity": "low",
       "category": "clarity",
@@ -94,7 +84,7 @@
       }
     },
     {
-      "id": "R010",
+      "id": "R009",
       "description": "Check for double negatives that create ambiguity",
       "severity": "medium",
       "category": "clarity",
