@@ -52,12 +52,27 @@ This creates:
 **Path B: Custom Rules (Iterative)**
 
 1. **Analyze Requirements** - Agent converts user's needs into clear criteria
+
 2. **Generate Rules** - Invoke `parse_rules.py` to generate customized rules by merging them with the default rules
 
    ⚠️ **CRITICAL**: Do NOT use the `--no-base` flag unless the user explicitly requests to exclude default rules. The default behavior is to merge user requirements WITH base rules.
 
-3. **User Confirmation** - Present the newly generated rules for user verification and approval.
-4. **Iterate if Needed** - Refine based on feedback, return to step 3
+3. **User Confirmation** - ⚠️ **MANDATORY STEP - DO NOT SKIP**:
+
+   After generating rules, you **MUST**:
+   - Use `read_file` to read the generated rules file (`.claude-work/doc-audit/custom_rules.json`)
+   - Present ALL rules to user in the following simplified format:
+     ```
+     [R001] Rule description...
+     [R002] Rule description...
+     [R003] Rule description...
+     ...
+     Total: N rules
+     ```
+   - Ask user explicitly: "请审阅以上规则。是否批准继续审计？或需要修改规则？" (Please review the rules above. Approve to continue audit? Or need modifications?)
+   - **DO NOT proceed to Phase 2 until user explicitly confirms approval**
+
+4. **Iterate if Needed** - If user requests changes, refine rules using `parse_rules.py` again, then return to step 3 for re-confirmation
 
 ### Phase 2: Parse and Audit
 
