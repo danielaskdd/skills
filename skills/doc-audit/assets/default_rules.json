@@ -5,92 +5,82 @@
   "rules": [
     {
       "id": "R001",
-      "description": "Check for typos and spelling errors in the text",
+      "description": "检查原文是否存在错别字、标点符号误用或严重的语法错误，忽略空格和换行等排版错误。",
       "severity": "medium",
       "category": "grammar",
       "examples": {
-        "violation": "The comapny will provide services...",
-        "correction": "The company will provide services..."
+        "violation": "内部协调和作机制",
+        "correction": "内部协调合作机制"
       }
     },
     {
       "id": "R002",
-      "description": "Check for grammar errors and sentence structure issues",
+      "description": "检查原文是否存在中英文对照内容，需要检查翻译是否准确，检查中文含义与英文表述是否存在语义冲突。",
       "severity": "medium",
       "category": "grammar",
       "examples": {
-        "violation": "The parties agrees to the terms.",
-        "correction": "The parties agree to the terms."
+        "violation": "自动化控制系统具有极强的强壮性（Robustness）",
+        "correction": "自动化控制系统具有极强的鲁棒性（Robustness）"
       }
     },
     {
       "id": "R003",
-      "description": "Check for unclear references (ambiguous pronouns, vague terms without clear antecedents)",
+      "description": "检查原文是否存在指代关系模糊和歧义；例如包含多个不同名词或短语，导致代词的指代对象不唯一；又如同一概念用不同的指代名词来表示。",
       "severity": "high",
       "category": "clarity",
       "examples": {
-        "violation": "If the payment is late, it will be subject to penalties. They must pay within 30 days.",
-        "correction": "If the payment is late, the payment will be subject to penalties. The debtor must pay within 30 days."
+        "violation": "甲方通知乙方其应支付费用，我方须在30天内完成，否则它将失效。",
+        "correction": "甲方通知乙方，乙方应支付费用；乙方须在30天内完成支付，否则本通知将失效。"
       }
     },
     {
       "id": "R004",
-      "description": "Check for logical inconsistencies (contradictions between stated facts and conclusions)",
-      "severity": "high",
-      "category": "logic",
+      "description": "检查是否存在导致责任主体定义模糊的被动语态。",
+      "severity": "low",
+      "category": "clarity",
       "examples": {
-        "violation": "The contract is effective for 12 months. The parties may terminate at any time before the 6-month anniversary.",
-        "correction": "Clarify the relationship between contract duration and early termination rights."
+        "violation": "必须在项目截止日期前一个月被提交验收报告。",
+        "correction": "乙方必须在项目截止日期前一个月被提交验收报告。"
       }
     },
     {
       "id": "R005",
-      "description": "Check for vague or ambiguous monetary amounts",
-      "severity": "high",
-      "category": "semantic",
+      "description": "检查是否存在时间或日期是的含糊表述。",
+      "severity": "medium",
+      "category": "clarity",
       "examples": {
-        "violation": "Party B shall pay approximately 10% of the total amount.",
-        "correction": "Party B shall pay exactly 10% of the total contract amount (RMB)."
+        "violation": "交付物应在签署协议后立即提供。",
+        "correction": "交付物应在协议签署之日起15个工作日内提供。"
       }
     },
     {
       "id": "R006",
-      "description": "Check for missing currency specifications in monetary values",
+      "description": "检查金额数值中是否缺失具体的货币单位或币种规范。",
       "severity": "high",
       "category": "semantic",
       "examples": {
-        "violation": "The penalty amount is 50,000.",
-        "correction": "The penalty amount is RMB 50,000."
+        "violation": "违约金总额为5万元。",
+        "correction": "违约金总额为人民币5万元。"
       }
     },
     {
       "id": "R007",
-      "description": "Check for vague time references without specific dates",
-      "severity": "medium",
-      "category": "semantic",
+      "description": "检查是否存在模糊或有歧义的金额或数值表述，或者有明确的数值计算和推演错误。",
+      "severity": "logic",
+      "category": "",
       "examples": {
-        "violation": "The deliverables shall be provided promptly after signing.",
-        "correction": "The deliverables shall be provided within 30 calendar days after the contract signing date."
+        "violation": "乙方应支付10%的违约金。",
+        "correction": "乙方应支付合同金额10%的违约金。."
       }
     },
     {
       "id": "R008",
-      "description": "Check for passive voice that obscures responsibility",
-      "severity": "low",
-      "category": "clarity",
+      "description": "检查是否存在内部的逻辑错误；例如前提和结论不一致，或陈述的事实无法推导出结论，或陈述之间相互矛盾。",
+      "severity": "high",
+      "category": "logic",
       "examples": {
-        "violation": "The report must be submitted by the deadline.",
-        "correction": "Party A must submit the report by the deadline."
-      }
-    },
-    {
-      "id": "R009",
-      "description": "Check for double negatives that create ambiguity",
-      "severity": "medium",
-      "category": "clarity",
-      "examples": {
-        "violation": "The agreement shall not be invalid unless both parties consent.",
-        "correction": "The agreement shall remain valid unless both parties consent to its termination."
+        "violation": "技术要求：内容容量256MB；投标相应：内容容量512MB；偏离结论：无偏离",
+        "correction": "偏离结论：正偏离."
       }
     }
   ]

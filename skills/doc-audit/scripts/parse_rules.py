@@ -101,51 +101,45 @@ def load_base_rules(base_rules_path: Optional[str] = None) -> list:
         return []
 
 
-def merge_rules_with_llm(base_rules: list, input_text: str, api_key: Optional[str] = None) -> list:
+def _build_prompt(base_rules: list, input_text: str, output_language: str) -> str:
     """
-    Use LLM to intelligently merge base rules with user requirements.
-
+    Build the prompt for LLM rule merging.
+    
     Args:
-        base_rules: Existing base rules (from default or previous iteration)
-        input_text: User's new requirements or modification requests
-        api_key: API key for LLM service (Gemini or OpenAI)
-
+        base_rules: Existing base rules (empty list if starting from scratch)
+        input_text: User's requirements or modification requests
+        output_language: Language for rule descriptions
+    
     Returns:
-        Complete merged list of structured rule dictionaries
+        Formatted prompt string
     """
-    # Determine the task type based on whether we have base rules
     has_base_rules = bool(base_rules)
     
-    # Get output language from environment variable
-    output_language = os.getenv("AUDIT_LANGUAGE", "Chinese")
-    
-    # Try Gemini first
-    google_key = api_key or os.getenv("GOOGLE_API_KEY")
-    if google_key:
-        try:
-            from google import genai
-            from google.genai import types
-            
-            client = genai.Client(api_key=google_key)
-            # Use environment variable for model name, fallback to default
-            model_name = os.getenv("DOC_AUDIT_GEMINI_MODEL", "gemini-3-flash")
+    if has_base_rules:
+        return f"""You are an audit rule expert. Your task is to ADD new rules to an existing ruleset while PRESERVING the existing rules.
 
-            if has_base_rules:
-                prompt = f"""You are an audit rule expert. Merge these existing rules with user's new requirements.
-
-EXISTING BASE RULES:
+EXISTING BASE RULES (PROTECTED - DO NOT MODIFY unless explicitly requested):
 {json.dumps(base_rules, indent=2, ensure_ascii=False)}
 
-USER'S REQUIREMENTS/MODIFICATIONS:
+USER'S REQUIREMENTS:
 {input_text}
 
-Task: Create a unified ruleset by intelligently merging:
-1. Preserve unique existing rules that don't conflict with user requirements
-2. If user requirement overlaps with existing rule, merge or update as appropriate
-3. Add any new unique requirements from user input
-4. If user requests modifications to specific rules (e.g., "change R007 to HIGH"), update them
-5. Maintain sequential rule IDs starting from R001
-6. Ensure no redundancy or duplication
+CRITICAL INSTRUCTIONS:
+1. **PRESERVE ALL EXISTING RULES AS-IS**: Copy all existing base rules to the output WITHOUT any modifications to their description, severity, category, or examples - unless the user EXPLICITLY requests a change (e.g., "modify R003", "change the severity of R005", "delete R007").
+
+2. **ADD NEW RULES ONLY**: If the user's requirement describes something NOT already covered by existing rules, add it as a new rule.
+
+3. **DETECT EXPLICIT MODIFICATION REQUESTS**: Only modify an existing rule if the user clearly and explicitly requests it, such as:
+   - "Change R003 severity to high"
+   - "Modify the description of R005 to..."
+   - "Delete/Remove R007"
+   - "Update rule about XXX to..."
+
+4. **DO NOT "merge" or "improve" existing rules**: Even if a user requirement seems similar to an existing rule, do NOT modify the existing rule. Instead, either:
+   - Skip adding if the existing rule already covers it sufficiently
+   - Add as a separate new rule if there's meaningful difference
+
+5. Renumber all rules sequentially starting from R001.
 
 Each rule must have:
 - id: Unique identifier (R001, R002, ...)
@@ -157,10 +151,9 @@ Each rule must have:
 
 IMPORTANT: All rule descriptions, violation examples, correction examples, and any other textual content MUST be written in {output_language}.
 
-Return a valid JSON array of the complete merged rules.
-"""
-            else:
-                prompt = f"""You are an audit rule expert. Create structured audit rules based on user's requirements.
+Return a valid JSON array of the complete rules."""
+    else:
+        return f"""You are an audit rule expert. Create structured audit rules based on user's requirements.
 
 USER'S REQUIREMENTS:
 {input_text}
@@ -182,8 +175,38 @@ Each rule must have:
 
 IMPORTANT: All rule descriptions, violation examples, correction examples, and any other textual content MUST be written in {output_language}.
 
-Return a valid JSON array of the complete rules.
-"""
+Return a valid JSON array of the complete rules."""
+
+
+def merge_rules_with_llm(base_rules: list, input_text: str, api_key: Optional[str] = None) -> list:
+    """
+    Use LLM to intelligently merge base rules with user requirements.
+
+    Args:
+        base_rules: Existing base rules (from default or previous iteration)
+        input_text: User's new requirements or modification requests
+        api_key: API key for LLM service (Gemini or OpenAI)
+
+    Returns:
+        Complete merged list of structured rule dictionaries
+    """
+    # Get output language from environment variable
+    output_language = os.getenv("AUDIT_LANGUAGE", "Chinese")
+    
+    # Build unified prompt
+    prompt = _build_prompt(base_rules, input_text, output_language)
+    
+    # Try Gemini first
+    google_key = api_key or os.getenv("GOOGLE_API_KEY")
+    if google_key:
+        try:
+            from google import genai
+            from google.genai import types
+            
+            client = genai.Client(api_key=google_key)
+            # Use environment variable for model name, fallback to default
+            model_name = os.getenv("DOC_AUDIT_GEMINI_MODEL", "gemini-3-flash")
+
             response = client.models.generate_content(
                 model=model_name,
                 contents=prompt,
@@ -210,60 +233,6 @@ Return a valid JSON array of the complete rules.
             # Use environment variable for model name, fallback to default
             model_name = os.getenv("DOC_AUDIT_OPENAI_MODEL", "gpt-5.2")
 
-            if has_base_rules:
-                prompt = f"""You are an audit rule expert. Merge these existing rules with user's new requirements.
-
-EXISTING BASE RULES:
-{json.dumps(base_rules, indent=2, ensure_ascii=False)}
-
-USER'S REQUIREMENTS/MODIFICATIONS:
-{input_text}
-
-Task: Create a unified ruleset by intelligently merging:
-1. Preserve unique existing rules that don't conflict with user requirements
-2. If user requirement overlaps with existing rule, merge or update as appropriate
-3. Add any new unique requirements from user input
-4. If user requests modifications to specific rules (e.g., "change R007 to HIGH"), update them
-5. Maintain sequential rule IDs starting from R001
-6. Ensure no redundancy or duplication
-
-Each rule must have:
-- id: Unique identifier (R001, R002, ...)
-- description: Clear description of what to check
-- severity: "high", "medium", or "low"
-- category: Suggested values: "grammar", "clarity", "logic", "compliance", "format", "semantic", "other"
-  You may also use custom categories if they better fit the rule type.
-- examples: Optional object with "violation" and "correction" examples
-
-IMPORTANT: All rule descriptions, violation examples, correction examples, and any other textual content MUST be written in {output_language}.
-
-Return a valid JSON object with a "rules" array containing the complete merged rules.
-"""
-            else:
-                prompt = f"""You are an audit rule expert. Create structured audit rules based on user's requirements.
-
-USER'S REQUIREMENTS:
-{input_text}
-
-Task: Create a comprehensive ruleset based on the requirements:
-1. Parse and structure each requirement as a separate rule
-2. Assign sequential rule IDs starting from R001
-3. Determine appropriate severity levels based on the requirement's importance
-4. Categorize rules appropriately
-5. Add helpful examples where relevant
-
-Each rule must have:
-- id: Unique identifier (R001, R002, ...)
-- description: Clear description of what to check
-- severity: "high", "medium", or "low"
-- category: Suggested values: "grammar", "clarity", "logic", "compliance", "format", "semantic", "other"
-  You may also use custom categories if they better fit the rule type.
-- examples: Optional object with "violation" and "correction" examples
-
-IMPORTANT: All rule descriptions, violation examples, correction examples, and any other textual content MUST be written in {output_language}.
-
-Return a valid JSON object with a "rules" array containing the complete rules.
-"""
             response = client.chat.completions.create(
                 model=model_name,
                 messages=[{"role": "user", "content": prompt}],
