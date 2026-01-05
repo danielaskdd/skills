@@ -72,6 +72,11 @@ export DOC_AUDIT_GEMINI_MODEL="\${DOC_AUDIT_GEMINI_MODEL:-gemini-2.5-flash}"
 # Older models like gpt-4-turbo, gpt-4, gpt-3.5-turbo do NOT support json_schema response format
 export DOC_AUDIT_OPENAI_MODEL="\${DOC_AUDIT_OPENAI_MODEL:-gpt-5.2}"
 
+# Audit Output Language Configuration
+# Specifies the language for LLM-generated rules and audit results
+# Examples: "Chinese", "English", "Japanese", "Korean", etc.
+export AUDIT_LANGUAGE="\${AUDIT_LANGUAGE:-Chinese}"
+
 # Show current environment
 echo "Doc-Audit Environment Activated"
 echo "  Skill Path: \$DOC_AUDIT_SKILL_PATH"

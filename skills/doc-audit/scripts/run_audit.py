@@ -196,6 +196,9 @@ def build_system_prompt(rules: list) -> str:
     Returns:
         System prompt string
     """
+    # Get output language from environment variable
+    output_language = os.getenv("AUDIT_LANGUAGE", "Chinese")
+    
     rules_text = format_rules_for_prompt(rules)
 
     system_prompt = f"""You are a professional document auditor. Your task is to analyze text blocks and check for violations of audit rules.
@@ -211,6 +214,8 @@ Instructions:
    - The specific text that violates the rule
    - Why it's a violation
    - A suggested correction
+
+IMPORTANT: All output text including violation_reason and suggestion MUST be written in {output_language}.
 
 Return your analysis as a JSON object with this structure:
 {{

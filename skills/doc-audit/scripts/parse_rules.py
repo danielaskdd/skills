@@ -95,6 +95,9 @@ def merge_rules_with_llm(base_rules: list, input_text: str, api_key: Optional[st
     # Determine the task type based on whether we have base rules
     has_base_rules = bool(base_rules)
     
+    # Get output language from environment variable
+    output_language = os.getenv("AUDIT_LANGUAGE", "Chinese")
+    
     # Try Gemini first
     google_key = api_key or os.getenv("GOOGLE_API_KEY")
     if google_key:
@@ -131,6 +134,8 @@ Each rule must have:
   You may also use custom categories if they better fit the rule type.
 - examples: Optional object with "violation" and "correction" examples
 
+IMPORTANT: All rule descriptions, violation examples, correction examples, and any other textual content MUST be written in {output_language}.
+
 Return a valid JSON array of the complete merged rules.
 """
             else:
@@ -153,6 +158,8 @@ Each rule must have:
 - category: Suggested values: "grammar", "clarity", "logic", "compliance", "format", "semantic", "other"
   You may also use custom categories if they better fit the rule type.
 - examples: Optional object with "violation" and "correction" examples
+
+IMPORTANT: All rule descriptions, violation examples, correction examples, and any other textual content MUST be written in {output_language}.
 
 Return a valid JSON array of the complete rules.
 """
@@ -207,6 +214,8 @@ Each rule must have:
   You may also use custom categories if they better fit the rule type.
 - examples: Optional object with "violation" and "correction" examples
 
+IMPORTANT: All rule descriptions, violation examples, correction examples, and any other textual content MUST be written in {output_language}.
+
 Return a valid JSON object with a "rules" array containing the complete merged rules.
 """
             else:
@@ -229,6 +238,8 @@ Each rule must have:
 - category: Suggested values: "grammar", "clarity", "logic", "compliance", "format", "semantic", "other"
   You may also use custom categories if they better fit the rule type.
 - examples: Optional object with "violation" and "correction" examples
+
+IMPORTANT: All rule descriptions, violation examples, correction examples, and any other textual content MUST be written in {output_language}.
 
 Return a valid JSON object with a "rules" array containing the complete rules.
 """

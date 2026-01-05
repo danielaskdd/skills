@@ -389,6 +389,11 @@ export OPENAI_API_KEY=your_api_key
 # Override these to use different models across all scripts
 export DOC_AUDIT_GEMINI_MODEL=gemini-3-flash    # Default Gemini model
 export DOC_AUDIT_OPENAI_MODEL=gpt-5.2           # Default OpenAI model
+
+# Output Language Configuration (optional - set in env.sh automatically)
+# Specifies the language for LLM-generated rules and audit results
+# Examples: "Chinese", "English", "Japanese", "Korean", etc.
+export AUDIT_LANGUAGE=Chinese                   # Default: Chinese
 ```
 
 **⚠️ OpenAI Model Compatibility:**
@@ -407,11 +412,11 @@ Older models are **NOT supported** and will cause API errors:
 If you encounter errors like "json_schema is not supported", ensure you're using a compatible model.
 
 **Model Configuration:**
-The default models for all scripts are centralized in `.claude-work/env.sh`:
+The default models for all scripts are centralized in `.claude-work/doc-audit/env.sh`:
 - **Gemini**: `gemini-3-flash` (changeable via `DOC_AUDIT_GEMINI_MODEL`)
 - **OpenAI**: `gpt-5.2` (changeable via `DOC_AUDIT_OPENAI_MODEL`)
 
-To use different models, edit `.claude-work/env.sh` before running scripts:
+To use different models, edit `.claude-work/doc-audit/env.sh` before running scripts:
 
 ```bash
 # Example: Use a different model across all scripts
