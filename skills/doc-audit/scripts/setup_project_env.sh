@@ -66,7 +66,7 @@ export PYTHONPATH="\$DOC_AUDIT_SKILL_PATH:\$PYTHONPATH"
 
 # Default LLM Model Configuration
 # Change these to use different models across all scripts
-export DOC_AUDIT_GEMINI_MODEL="\${DOC_AUDIT_GEMINI_MODEL:-gemini-3-flash}"
+export DOC_AUDIT_GEMINI_MODEL="\${DOC_AUDIT_GEMINI_MODEL:-gemini-2.5-flash}"
 
 # OpenAI Model Requirement: Must use gpt-4o-2024-08-06 or later, gpt-4o-mini, or gpt-5.x
 # Older models like gpt-4-turbo, gpt-4, gpt-3.5-turbo do NOT support json_schema response format

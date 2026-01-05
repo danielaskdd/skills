@@ -60,13 +60,11 @@ AUDIT_RESULT_SCHEMA = {
                         "description": "Suggested correction"
                     }
                 },
-                "required": ["rule_id", "violation_text", "violation_reason", "suggestion"],
-                "additionalProperties": False
+                "required": ["rule_id", "violation_text", "violation_reason", "suggestion"]
             }
         }
     },
-    "required": ["is_violation", "violations"],
-    "additionalProperties": False
+    "required": ["is_violation", "violations"]
 }
 
 
