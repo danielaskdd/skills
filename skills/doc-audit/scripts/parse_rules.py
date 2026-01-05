@@ -92,6 +92,9 @@ def merge_rules_with_llm(base_rules: list, input_text: str, api_key: Optional[st
     Returns:
         Complete merged list of structured rule dictionaries
     """
+    # Determine the task type based on whether we have base rules
+    has_base_rules = bool(base_rules)
+    
     # Try Gemini first
     google_key = api_key or os.getenv("GOOGLE_API_KEY")
     if google_key:
@@ -103,7 +106,8 @@ def merge_rules_with_llm(base_rules: list, input_text: str, api_key: Optional[st
             # Use environment variable for model name, fallback to default
             model_name = os.getenv("DOC_AUDIT_GEMINI_MODEL", "gemini-3-flash")
 
-            prompt = f"""You are an audit rule expert. Merge these existing rules with user's new requirements.
+            if has_base_rules:
+                prompt = f"""You are an audit rule expert. Merge these existing rules with user's new requirements.
 
 EXISTING BASE RULES:
 {json.dumps(base_rules, indent=2, ensure_ascii=False)}
@@ -128,6 +132,29 @@ Each rule must have:
 - examples: Optional object with "violation" and "correction" examples
 
 Return a valid JSON array of the complete merged rules.
+"""
+            else:
+                prompt = f"""You are an audit rule expert. Create structured audit rules based on user's requirements.
+
+USER'S REQUIREMENTS:
+{input_text}
+
+Task: Create a comprehensive ruleset based on the requirements:
+1. Parse and structure each requirement as a separate rule
+2. Assign sequential rule IDs starting from R001
+3. Determine appropriate severity levels based on the requirement's importance
+4. Categorize rules appropriately
+5. Add helpful examples where relevant
+
+Each rule must have:
+- id: Unique identifier (R001, R002, ...)
+- description: Clear description of what to check
+- severity: "high", "medium", or "low"
+- category: Suggested values: "grammar", "clarity", "logic", "compliance", "format", "semantic", "other"
+  You may also use custom categories if they better fit the rule type.
+- examples: Optional object with "violation" and "correction" examples
+
+Return a valid JSON array of the complete rules.
 """
             response = client.models.generate_content(
                 model=model_name,
@@ -155,7 +182,8 @@ Return a valid JSON array of the complete merged rules.
             # Use environment variable for model name, fallback to default
             model_name = os.getenv("DOC_AUDIT_OPENAI_MODEL", "gpt-5.2")
 
-            prompt = f"""You are an audit rule expert. Merge these existing rules with user's new requirements.
+            if has_base_rules:
+                prompt = f"""You are an audit rule expert. Merge these existing rules with user's new requirements.
 
 EXISTING BASE RULES:
 {json.dumps(base_rules, indent=2, ensure_ascii=False)}
@@ -180,6 +208,29 @@ Each rule must have:
 - examples: Optional object with "violation" and "correction" examples
 
 Return a valid JSON object with a "rules" array containing the complete merged rules.
+"""
+            else:
+                prompt = f"""You are an audit rule expert. Create structured audit rules based on user's requirements.
+
+USER'S REQUIREMENTS:
+{input_text}
+
+Task: Create a comprehensive ruleset based on the requirements:
+1. Parse and structure each requirement as a separate rule
+2. Assign sequential rule IDs starting from R001
+3. Determine appropriate severity levels based on the requirement's importance
+4. Categorize rules appropriately
+5. Add helpful examples where relevant
+
+Each rule must have:
+- id: Unique identifier (R001, R002, ...)
+- description: Clear description of what to check
+- severity: "high", "medium", or "low"
+- category: Suggested values: "grammar", "clarity", "logic", "compliance", "format", "semantic", "other"
+  You may also use custom categories if they better fit the rule type.
+- examples: Optional object with "violation" and "correction" examples
+
+Return a valid JSON object with a "rules" array containing the complete rules.
 """
             response = client.chat.completions.create(
                 model=model_name,
@@ -304,6 +355,10 @@ def main():
     # Generate or merge rules (always uses LLM)
     if not input_text:
         # No input text, just use base rules
+        if not base_rules:
+            print("Error: No base rules and no input provided. Nothing to generate.", file=sys.stderr)
+            print("Either provide input text (--input or --file) or ensure base rules are available.", file=sys.stderr)
+            sys.exit(1)
         all_rules = base_rules
     else:
         # Use LLM to merge base rules with user requirements
