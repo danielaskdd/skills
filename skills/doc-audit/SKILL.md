@@ -53,14 +53,17 @@ This creates:
 
 1. **Analyze Requirements** - Agent converts user's needs into clear criteria
 2. **Generate Rules** - Invoke `parse_rules.py` to generate customized rules by merging them with the default rules
+
+   ⚠️ **CRITICAL**: Do NOT use the `--no-base` flag unless the user explicitly requests to exclude default rules. The default behavior is to merge user requirements WITH base rules.
+
 3. **User Confirmation** - Present the newly generated rules for user verification and approval.
 4. **Iterate if Needed** - Refine based on feedback, return to step 3
 
-### Phase 2: Document Audit
+### Phase 2: Parse and Audit
 
 5. **Parse Document** - Extract text blocks from .docx with proper numbering (Aspose)
    - Output: `.claude-work/doc-audit/blocks.jsonl`
-6. **Execute Audit** - LLM audits each text block against rules by `workflow.sh` (created by enviroment setup)
+6. **Execute Audit Work Flow** - LLM audits each text block against rules by `workflow.sh` (created by enviroment setup)
    - Output: `<document_directory>/<document_name>_audit_report.html` (same directory as source document)
 
 ```
@@ -113,32 +116,49 @@ source ./.claude-work/doc-audit/env.sh
 
 ### 2. Generate Customized Rules (Iterative)
 
-Intelligently merge base rules with user requirements using LLM:
+Intelligently merge base rules with user requirements using LLM.
+
+**DEFAULT BEHAVIOR**: Always merges with base rules unless user explicitly requests otherwise.
+
+**Common Usage Patterns:**
 
 ```bash
-# Initial generation (Merges with default rules if the `--base-rules` parameter is omitted)
+# ✅ RECOMMENDED: Initial generation (automatically merges with default rules)
+# Use when: User wants custom requirements PLUS default rules
 python scripts/parse_rules.py \
   --input "Check for ambiguous payment terms and missing signatures" \
   --output .claude-work/doc-audit/custom_rules.json
 
-# Iteration 1: Refine based on user feedback
+# ✅ RECOMMENDED: Iterative refinement (continues from previous output)
+# Use when: User wants to modify/add/remove specific rules
 python scripts/parse_rules.py \
   --base-rules .claude-work/doc-audit/custom_rules.json \
-  --input "Add rule for checking ambiguous or erroneous references" \
+  --input "Add rule for checking ambiguous references" \
   --output .claude-work/doc-audit/custom_rules.json
 
-# Iteration 2: Handle refinement requests based on user feedback
+# ✅ Further iteration
 python scripts/parse_rules.py \
   --base-rules .claude-work/doc-audit/custom_rules.json \
   --input "Remove R009, make signature rule more specific" \
   --output .claude-work/doc-audit/custom_rules.json
 
-# Start from scratch without base rules (Only if user requests to exclude default rules)
+# Use --base-rules parameter to generate customized rules for most of the time.
+# ⚠️ ONLY use --no-base when user EXPLICITLY requests to exclude default rules
+# Example user requests that warrant --no-base:
+#   - "Only check for X and Y, don't include any default rules"
+#   - "Start from scratch without default rules"
+#   - "I only want these specific rules, no others"
 python scripts/parse_rules.py \
   --no-base \
   --input "Check for missing section numbers and inconsistent terminology" \
   --output .claude-work/doc-audit/custom_rules.json
 ```
+
+**Decision Guide:**
+- User: "Check for A, B, C" → ✅ Use  `--base-rules`
+- User: "Add rule for X" → ✅ Use `--base-rules`
+- User: "ONLY check for A, no other rules" → ⚠️ Use `--no-base`
+- User: "Don't include default/standard rules" → ⚠️ Use `--no-base`
 
 **Key Parameters:**
 
@@ -148,7 +168,7 @@ python scripts/parse_rules.py \
 | `--file` / `-f` | path | No* | Read requirements from file instead of --input |
 | `--base-rules` | path | No | Base rules to merge with (default: auto-detects `.claude-work/doc-audit/default_rules.json`, then falls back to `assets/default_rules.json`) |
 | `--output` / `-o` | path | No | Output rules file (default: `rules.json`) |
-| `--no-base` | flag | No | Don't load base rules (start from scratch) |
+| `--no-base` | flag | No | ⚠️ **DO NOT USE** unless user explicitly requests to exclude default rules. Starts from scratch without loading any base rules. |
 | `--api-key` | text | No | API key for LLM service (uses `GOOGLE_API_KEY` or `OPENAI_API_KEY` env var by default) |
 
 \* At least one of `--input` or `--file` is required, unless you just want to renumber base rules
