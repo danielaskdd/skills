@@ -39,18 +39,49 @@ def load_manifest(file_path: str) -> list:
     return results
 
 
-def generate_report_data(manifest: list) -> dict:
+def load_rules(file_path: str) -> dict:
+    """
+    Load rules from JSON file.
+
+    Args:
+        file_path: Path to rules JSON file
+
+    Returns:
+        Dictionary mapping rule_id to rule details
+    """
+    with open(file_path, 'r', encoding='utf-8') as f:
+        rules_data = json.load(f)
+    
+    rules_dict = {}
+    for rule in rules_data.get('rules', []):
+        rule_id = rule.get('id')
+        if rule_id:
+            rules_dict[rule_id] = {
+                'id': rule_id,
+                'description': rule.get('description', ''),
+                'severity': rule.get('severity', 'medium'),
+                'category': rule.get('category', 'other')
+            }
+    return rules_dict
+
+
+def generate_report_data(manifest: list, rules_file_dict: dict = None) -> dict:
     """
     Generate report data from manifest.
 
     Args:
         manifest: List of audit result entries
+        rules_file_dict: Optional dictionary of rules loaded from rules file
 
     Returns:
         Dictionary with report data
     """
     violations = []
     category_counts = Counter()
+    rules = {}
+
+    if rules_file_dict is None:
+        rules_file_dict = {}
 
     for entry in manifest:
         if not entry.get('is_violation', False):
@@ -61,29 +92,45 @@ def generate_report_data(manifest: list) -> dict:
         if entry_violations:
             for v in entry_violations:
                 category = v.get('category', 'other')
+                rule_id = v.get('rule_id', '')
 
                 violations.append({
                     'uuid': entry.get('uuid', ''),
                     'heading': entry.get('p_heading', ''),
                     'content': entry.get('p_content', ''),
                     'category': category,
-                    'rule_id': v.get('rule_id', ''),
+                    'rule_id': rule_id,
                     'violation_text': v.get('violation_text', ''),
                     'violation_reason': v.get('violation_reason', ''),
                     'suggestion': v.get('suggestion', '')
                 })
 
                 category_counts[category] += 1
+
+                # Collect unique rule information
+                if rule_id and rule_id not in rules:
+                    # Try to get rule info from rules file first
+                    if rule_id in rules_file_dict:
+                        rules[rule_id] = rules_file_dict[rule_id].copy()
+                    else:
+                        # Fallback to data from manifest
+                        rules[rule_id] = {
+                            'id': rule_id,
+                            'category': category,
+                            'severity': v.get('severity', 'medium'),
+                            'description': v.get('rule_description', '')
+                        }
         else:
             # Single violation (backward compatibility)
             category = entry.get('category', entry.get('issue_type', 'other'))
+            rule_id = entry.get('rule_id', '')
 
             violations.append({
                 'uuid': entry.get('uuid', ''),
                 'heading': entry.get('p_heading', ''),
                 'content': entry.get('p_content', ''),
                 'category': category,
-                'rule_id': entry.get('rule_id', ''),
+                'rule_id': rule_id,
                 'violation_text': entry.get('violation_text', ''),
                 'violation_reason': entry.get('violation_reason', ''),
                 'suggestion': entry.get('suggestion', '')
@@ -91,13 +138,28 @@ def generate_report_data(manifest: list) -> dict:
 
             category_counts[category] += 1
 
+            # Collect unique rule information
+            if rule_id and rule_id not in rules:
+                # Try to get rule info from rules file first
+                if rule_id in rules_file_dict:
+                    rules[rule_id] = rules_file_dict[rule_id].copy()
+                else:
+                    # Fallback to data from manifest
+                    rules[rule_id] = {
+                        'id': rule_id,
+                        'category': category,
+                        'severity': entry.get('severity', 'medium'),
+                        'description': entry.get('rule_description', '')
+                    }
+
     return {
         'generated_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
         'total_blocks': len(manifest),
         'violation_count': len(violations),
         'violations': violations,
         'category_counts': dict(category_counts),
-        'max_category_count': max(category_counts.values()) if category_counts else 0
+        'max_category_count': max(category_counts.values()) if category_counts else 0,
+        'rules': rules
     }
 
 
@@ -216,6 +278,11 @@ def main():
         action="store_true",
         help="Also output report data as JSON"
     )
+    parser.add_argument(
+        "--rules", "-r",
+        type=str,
+        help="Path to rules JSON file (optional, for loading rule descriptions)"
+    )
 
     args = parser.parse_args()
 
@@ -230,13 +297,24 @@ def main():
         print(f"Error: Template file not found: {args.template}", file=sys.stderr)
         sys.exit(1)
 
+    # Load rules if provided
+    rules_dict = {}
+    if args.rules:
+        rules_path = Path(args.rules)
+        if rules_path.exists():
+            print(f"Loading rules: {args.rules}")
+            rules_dict = load_rules(args.rules)
+            print(f"Loaded {len(rules_dict)} rules")
+        else:
+            print(f"Warning: Rules file not found: {args.rules}", file=sys.stderr)
+
     # Load and process manifest
     print(f"Loading manifest: {args.manifest}")
     manifest = load_manifest(args.manifest)
     print(f"Loaded {len(manifest)} entries")
 
     # Generate report data
-    data = generate_report_data(manifest)
+    data = generate_report_data(manifest, rules_dict)
     print(f"Found {data['violation_count']} issues")
 
     # Render HTML

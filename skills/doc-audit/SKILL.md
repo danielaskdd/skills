@@ -179,16 +179,27 @@ python scripts/run_audit.py --document blocks.jsonl --rules rules.json --model g
 Create HTML audit report from audit manifest:
 
 ```bash
-python scripts/generate_report.py manifest.jsonl --output report.html --template assets/report_template.html
+python scripts/generate_report.py manifest.jsonl \
+  --output report.html \
+  --template assets/report_template.html \
+  --rules rules.json
 ```
 
 **Important:** The `--template` parameter is **required**. Use `assets/report_template.html` or provide your own custom Jinja2 template.
+
+**Key Parameters:**
+- `--template <file>`: Path to Jinja2 HTML template (required)
+- `--rules <file>`: Path to rules JSON file (optional, recommended for displaying full rule details in modal popups)
+- `--output <file>`: Output HTML file path (default: audit_report.html)
+- `--trusted-html`: Disable HTML escaping (only for trusted inputs)
+- `--json`: Also output report data as JSON
 
 **Features:**
 - Total issue count and distribution by category
 - Issue details with original text reference
 - Suggested corrections
 - Source tracing (heading + block content)
+- Clickable rule badges that display full rule details in modal popups (when --rules is provided)
 - HTML is escaped by default; use `--trusted-html` only if inputs are trusted
 
 ## Quick Start (Agent Workflow)
@@ -260,7 +271,8 @@ python skills/doc-audit/scripts/run_audit.py \
 python skills/doc-audit/scripts/generate_report.py \
   .claude-work/doc-audit/manifest.jsonl \
   --output /path/to/contract_audit_report.html \
-  --template skills/doc-audit/assets/report_template.html
+  --template skills/doc-audit/assets/report_template.html \
+  --rules .claude-work/doc-audit/default_rules.json
 ```
 
 **Output:** `/path/to/contract_audit_report.html`
@@ -332,7 +344,8 @@ python skills/doc-audit/scripts/run_audit.py \
 python skills/doc-audit/scripts/generate_report.py \
   .claude-work/doc-audit/manifest.jsonl \
   --output /path/to/contract_audit_report.html \
-  --template skills/doc-audit/assets/report_template.html
+  --template skills/doc-audit/assets/report_template.html \
+  --rules .claude-work/doc-audit/custom_rules.json
 ```
 
 **Output:** `/path/to/contract_audit_report.html`

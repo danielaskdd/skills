@@ -167,7 +167,8 @@ echo "Step 3: Generating report..."
 python3 "$DOC_AUDIT_SKILL_PATH/scripts/generate_report.py" \
     "$SCRIPT_DIR/manifest.jsonl" \
     --output "$OUTPUT_REPORT" \
-    --template "$SCRIPT_DIR/report_template.html"
+    --template "$SCRIPT_DIR/report_template.html" \
+    --rules "$RULES"
 echo
 
 echo "=========================================="
@@ -234,11 +235,12 @@ python skills/doc-audit/scripts/run_audit.py \
   --rules .claude-work/doc-audit/default_rules.json \
   --output .claude-work/doc-audit/manifest.jsonl
 
-# 4. Generate report (with template from working directory)
+# 4. Generate report (with template and rules from working directory)
 python skills/doc-audit/scripts/generate_report.py \
   .claude-work/doc-audit/manifest.jsonl \
   --output document_audit_report.html \
-  --template .claude-work/doc-audit/report_template.html
+  --template .claude-work/doc-audit/report_template.html \
+  --rules .claude-work/doc-audit/default_rules.json
 ```
 
 ## Custom Rules Workflow
