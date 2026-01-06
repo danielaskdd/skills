@@ -49,7 +49,7 @@ AUDIT_RESULT_SCHEMA = {
                     },
                     "violation_text": {
                         "type": "string",
-                        "description": "The problematic text with sufficient surrounding context for unique string matching in the document"
+                        "description": "The problematic text with sufficient surrounding context for unique string matching in the document, but do not include list number and bullet point"
                     },
                     "violation_reason": {
                         "type": "string",
@@ -228,7 +228,7 @@ Instructions:
 1. Check if the provided text block violates ANY of the rules above
 2. For each violation found, provide:
    - The rule ID that was violated
-   - The violation text with enough surrounding context for unique string matching
+   - The violation text with enough surrounding context for unique string matching, but do not include list number and bullet point
    - Why it's a violation
    - The fix action: "delete", "replace", or "manual"
    - The revised text based on fix_action
@@ -427,8 +427,8 @@ def main():
     parser.add_argument(
         "--rate-limit",
         type=float,
-        default=0.5,
-        help="Seconds to wait between API calls (default: 0.5)"
+        default=0.05,
+        help="Seconds to wait between API calls (default: 0.05)"
     )
     parser.add_argument(
         "--start-block",
