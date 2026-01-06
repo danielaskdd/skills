@@ -41,7 +41,8 @@ class NumberingResolver:
         self.num_to_abstract: Dict[str, str] = {}  # numId -> abstractNumId
         self.counters: Dict[str, Dict[int, int]] = {}  # numId -> {ilvl -> current_count}
         self.start_overrides: Dict[str, Dict[int, int]] = {}  # numId -> {ilvl -> start_value}
-        self.style_numpr: Dict[str, dict] = {}  # styleId -> {numId, ilvl}
+        self.style_numpr: Dict[str, dict] = {}  # styleId -> {numId, ilvl} from styles.xml
+        self.style_numpr_overrides: Dict[str, dict] = {}  # Runtime overrides when direct numPr + pStyle
         self.style_based_on: Dict[str, str] = {}  # styleId -> basedOn styleId
         self._parse_numbering_xml(docx_path)
         self._parse_styles_xml(docx_path)
@@ -165,6 +166,8 @@ class NumberingResolver:
         Get rendered numbering label for a paragraph.
         
         Checks both direct numPr and style-inherited numbering.
+        When a paragraph has both pStyle and direct numPr, the direct numPr
+        becomes the runtime default for that style (overriding styles.xml).
         
         Args:
             para_element: lxml Element for <w:p>
@@ -179,8 +182,14 @@ class NumberingResolver:
             
             num_id = None
             ilvl = 0
+            style_id = None
             
-            # First, check for direct numPr in paragraph
+            # Get pStyle (if present)
+            pStyle = pPr.find(f'{{{NSMAP["w"]}}}pStyle')
+            if pStyle is not None:
+                style_id = pStyle.get(f'{{{NSMAP["w"]}}}val')
+            
+            # Check for direct numPr in paragraph
             numPr = pPr.find(f'{{{NSMAP["w"]}}}numPr')
             if numPr is not None:
                 num_id_elem = numPr.find(f'{{{NSMAP["w"]}}}numId')
@@ -189,17 +198,27 @@ class NumberingResolver:
                 if num_id_elem is not None:
                     num_id = num_id_elem.get(f'{{{NSMAP["w"]}}}val')
                     ilvl = int(ilvl_elem.get(f'{{{NSMAP["w"]}}}val')) if ilvl_elem is not None else 0
+                    
+                    # If paragraph has both pStyle and direct numPr, record the override
+                    if style_id:
+                        self.style_numpr_overrides[style_id] = {
+                            'numId': num_id,
+                            'ilvl': ilvl
+                        }
             
             # If no direct numPr, check style-inherited numbering
-            if num_id is None:
-                pStyle = pPr.find(f'{{{NSMAP["w"]}}}pStyle')
-                if pStyle is not None:
-                    style_id = pStyle.get(f'{{{NSMAP["w"]}}}val')
-                    if style_id:
-                        style_num = self._get_numbering_from_style(style_id)
-                        if style_num:
-                            num_id = style_num['numId']
-                            ilvl = style_num['ilvl']
+            if num_id is None and style_id:
+                # First check runtime overrides (from previous direct numPr)
+                if style_id in self.style_numpr_overrides:
+                    override = self.style_numpr_overrides[style_id]
+                    num_id = override['numId']
+                    ilvl = override['ilvl']
+                else:
+                    # Fall back to original style definition from styles.xml
+                    style_num = self._get_numbering_from_style(style_id)
+                    if style_num:
+                        num_id = style_num['numId']
+                        ilvl = style_num['ilvl']
             
             # If still no numbering found, return empty
             if num_id is None:
