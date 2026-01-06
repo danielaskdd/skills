@@ -78,6 +78,7 @@ This creates:
 
 5. **Parse Document** - Extract text blocks from .docx with proper numbering (Aspose)
    - Output: `.claude-work/doc-audit/blocks.jsonl`
+   - ⚠️ **Error handling**: If `parse_document.py` fails (e.g., missing paraId error), **stop the workflow immediately** and inform the user. Do NOT proceed to step 6.
 6. **Execute Audit Work Flow** - LLM audits each text block against rules by `workflow.sh` (created by enviroment setup)
    - Output: `<document_directory>/<document_name>_audit_report.html` (same directory as source document)
 
@@ -260,24 +261,28 @@ python scripts/parse_document.py document.docx \
 - **Heading-based splitting**: Each heading starts a new text block
 - **Table embedding**: Tables converted to `<table>JSON</table>` format and embedded in text blocks with surrounding paragraphs
 - **Heading hierarchy**: Preserves parent headings context for each block
-- **Deterministic UUIDs**: Generates consistent UUIDs from heading + content + position for reliable resume
+- **Stable UUIDs**: Uses `w14:paraId` from heading paragraphs as block UUID (8-character hex ID unique within document)
+- **paraId validation**: Requires Word 2013+ documents with `w14:paraId` attributes (terminates with error if missing)
 
 **Workflow:**
 
-1. Load document with Aspose.Words
-2. Call `doc.update_list_labels()` to render automatic numbering
+1. Load document with python-docx library
+2. Parse styles.xml to extract outline levels for headings
 3. Iterate through body nodes (paragraphs and tables)
-4. For each heading: save previous block, update heading stack based on outline level
-5. For each paragraph: append to current block
-6. For each table: convert to 2D array, save as separate block
-7. Generate deterministic UUID for each block using SHA-256(position + heading + content)
-8. Clean up old `manifest.jsonl` to prevent UUID mismatch in resume mode
+4. For each paragraph:
+   - Extract `w14:paraId` attribute (validates presence, errors if missing)
+   - Check if it's a heading via outline level
+   - If heading: save previous block with heading's paraId as UUID
+   - If content: append to current block, track first paraId for Preface blocks
+5. For each table: convert to 2D array and embed in content
+6. Use heading's `w14:paraId` as block UUID (or first content paraId for Preface blocks)
+7. Clean up old `manifest.jsonl` to prevent UUID mismatch in resume mode
 
 **Output Format (JSONL):**
 
 Each line is a JSON object. Tables are embedded as `<table>JSON</table>` within text content:
 ```json
-{"uuid": "a1b2c3...", "heading": "2.1 Penalty Clause", "content": "If Party B delays...\n<table>[[\"Header 1\",\"Header 2\"],[\"Cell 1\",\"Cell 2\"]]</table>\nSubsequent paragraph...", "type": "text", "parent_headings": ["Chapter 2 Contract Terms"]}
+{"uuid": "12AB34CD", "heading": "2.1 Penalty Clause", "content": "If Party B delays...\n<table>[[\"Header 1\",\"Header 2\"],[\"Cell 1\",\"Cell 2\"]]</table>\nSubsequent paragraph...", "type": "text", "parent_headings": ["Chapter 2 Contract Terms"]}
 ```
 
 **Output Format (JSON):**
@@ -287,7 +292,7 @@ Each line is a JSON object. Tables are embedded as `<table>JSON</table>` within 
   "total_blocks": 42,
   "blocks": [
     {
-      "uuid": "a1b2c3d4e5f6...",
+      "uuid": "12AB34CD",
       "heading": "2.1 Penalty Clause",
       "content": "If Party B delays payment...\n<table>[[\"Penalty Type\",\"Amount\"],[\"Late Payment\",\"1% per day\"]]</table>\nThe above table shows penalty structure.",
       "type": "text",
@@ -631,6 +636,10 @@ export DOC_AUDIT_OPENAI_MODEL="gpt-4o"  # or gpt-5.2, gpt-4o-mini, etc.
 ### Failure handling
 
 If a required package or API key is missing, do not proceed with the workflow. Provide the exact `pip install ...` command(s) and the `export ...` command(s) needed to prepare the environment.
+
+**Missing paraId Error:**
+
+If the document is missing `w14:paraId` attributes on paragraphs, `parse_document.py` will display a user-friendly error message and exit with code 1. This typically occurs with documents created by older versions of Microsoft Word (before Office 2013), or generated programmatically. When this error occurs , the agent must stop the workflow and inform the user immediately.
 
 ## Data Structures
 
