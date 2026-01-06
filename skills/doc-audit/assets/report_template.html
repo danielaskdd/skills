@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>文档审计报告 ({{ violation_count }}个问题)</title>
+    <title>文档审核结果 ({{ violation_count }}个问题)</title>
     <style>
         :root {
             --primary: #2563eb;
@@ -588,7 +588,7 @@
             <div class="header-row-1">
                 <div class="header-left">
                     <h1>
-                        📋 文档审计报告
+                        📋 文档审核报告
                         <span class="issue-stats" id="issueStats">
                             有效: <span id="validCount">{{ violation_count }}</span> | 
                             屏蔽: <span id="blockedCount">0</span>
@@ -615,7 +615,7 @@
                     </div>
                     <button class="export-btn" onclick="exportResults()">
                         <span>💾</span>
-                        <span>导出审核结果</span>
+                        <span>导出结果</span>
                     </button>
                 </div>
             </div>
@@ -686,7 +686,7 @@
                 <div class="no-issues">
                     <div class="icon">✅</div>
                     <h3>恭喜！未发现问题</h3>
-                    <p>文档已通过所有审计规则检查</p>
+                    <p>文档已通过所有审核规则检查</p>
                 </div>
             {% endif %}
         </div>
