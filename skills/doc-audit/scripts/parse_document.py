@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-ABOUTME: Parses DOCX documents into text blocks using Aspose.Words
+ABOUTME: Parses DOCX documents into text blocks using python-docx
 ABOUTME: Extracts automatic numbering, splits by headings, converts tables to JSON
 """
 
@@ -11,9 +11,17 @@ import sys
 from pathlib import Path
 
 try:
-    import aspose.words as aw
+    from docx import Document
+    from docx.oxml.ns import qn
 except ImportError:
-    print("Error: aspose-words not installed. Run: pip install aspose-words", file=sys.stderr)
+    print("Error: python-docx not installed. Run: pip install python-docx", file=sys.stderr)
+    sys.exit(1)
+
+try:
+    from numbering_resolver import NumberingResolver
+    from table_extractor import TableExtractor
+except ImportError:
+    print("Error: Required modules not found. Ensure numbering_resolver.py and table_extractor.py are in the same directory.", file=sys.stderr)
     sys.exit(1)
 
 
@@ -41,99 +49,105 @@ def generate_content_uuid(heading: str, content: str, block_index: int) -> str:
     return hashlib.sha256(combined.encode('utf-8')).hexdigest()[:32]
 
 
-def normalize_heading_level(outline_level: aw.OutlineLevel) -> int:
+def is_heading_paragraph(para) -> tuple:
     """
-    Normalize Aspose outline level to a 1-based heading level.
-
-    Aspose uses an enum for outline levels that may be 0-based (Level1 == 0)
-    or 1-based (Level1 == 1) depending on binding. This helper normalizes
-    to 1-based levels to avoid off-by-one errors when building the heading stack.
+    Check if paragraph is a heading by outline level or style.
+    
+    Returns:
+        (is_heading: bool, level: int or None)
     """
-    try:
-        level_value = int(outline_level)
-    except (TypeError, ValueError):
-        level_value = int(outline_level.value) if hasattr(outline_level, "value") else 1
-
-    if level_value <= 0:
-        return 1
-    if level_value > 9:
-        return 9
-    return level_value
+    # Check outline level in paragraph XML
+    pPr = para._element.find(qn('w:pPr'))
+    if pPr is not None:
+        outline_lvl = pPr.find(qn('w:outlineLvl'))
+        if outline_lvl is not None:
+            level = int(outline_lvl.get(qn('w:val')))
+            return (True, level + 1)  # Convert 0-based to 1-based
+    
+    # Check style name
+    if para.style and para.style.name:
+        style_name = para.style.name
+        if style_name.startswith('Heading'):
+            try:
+                level = int(style_name.replace('Heading', '').strip())
+                return (True, level)
+            except ValueError:
+                return (True, 1)
+        if style_name in ('Title', '标题'):
+            return (True, 0)
+    
+    return (False, None)
 
 
 def extract_audit_blocks(file_path: str) -> list:
     """
     Extract text blocks from a DOCX file for auditing.
-
-    Uses Aspose.Words to:
+    
+    Uses python-docx with custom numbering resolver to:
     1. Capture automatic numbering (list labels)
     2. Split document by headings
-    3. Convert tables to JSON
-
+    3. Convert tables to JSON (2D array)
+    
     Args:
         file_path: Path to the DOCX file
-
+        
     Returns:
         List of block dictionaries with heading, content, type, and metadata
     """
-    doc = aw.Document(file_path)
-
-    # CRITICAL: Update list labels to get rendered numbering
-    doc.update_list_labels()
-
+    doc = Document(file_path)
+    resolver = NumberingResolver(file_path)
+    
     blocks = []
     current_heading = "Preface/Uncategorized"
-    current_heading_stack = []  # Track heading hierarchy
+    current_heading_stack = []
     current_content = []
-
-    # Get all nodes from document body
-    for section in doc.sections:
-        body = section.as_section().body
-        nodes = body.get_child_nodes(aw.NodeType.ANY, False)
-
-        for node in nodes:
-            if node.node_type == aw.NodeType.PARAGRAPH:
-                para = node.as_paragraph()
-                text = para.get_text().strip()
-
-                if not text:
-                    continue
-
-                # Get automatic numbering label (e.g., "1.1", "Chapter 1")
-                label = ""
-                if para.list_label:
-                    label = para.list_label.label_string or ""
-
-                full_text = f"{label} {text}".strip() if label else text
-
-                # Check if this is a heading (outline level is not body text)
-                outline_level = para.paragraph_format.outline_level
-                is_heading = outline_level != aw.OutlineLevel.BODY_TEXT
-
-                if is_heading:
-                    # Save previous block if it has content
-                    if current_content:
-                        content_text = "\n".join(current_content)
-                        blocks.append({
-                            "uuid": generate_content_uuid(current_heading, content_text, len(blocks)),
-                            "heading": current_heading,
-                            "content": content_text,
-                            "type": "text",
-                            "parent_headings": current_heading_stack[:-1]
-                        })
-                        current_content = []
-
-                    # Update heading stack based on outline level (normalized to 1-based)
-                    level = normalize_heading_level(outline_level)
-                    # Truncate stack to parent level (current level - 1)
-                    current_heading_stack = current_heading_stack[:max(level - 1, 0)]
-                    current_heading_stack.append(full_text)
-                    current_heading = full_text
-                else:
-                    current_content.append(full_text)
-
-            elif node.node_type == aw.NodeType.TABLE:
-                # Save any pending text content
+    
+    # Iterate through document body elements (paragraphs and tables)
+    body = doc._element.body
+    
+    for element in body:
+        tag = element.tag.split('}')[-1]  # Remove namespace
+        
+        if tag == 'p':  # Paragraph
+            # Get paragraph text
+            para_text = ''
+            for run in element.findall('.//w:r', {'w': 'http://schemas.openxmlformats.org/wordprocessingml/2006/main'}):
+                for t in run.findall('w:t', {'w': 'http://schemas.openxmlformats.org/wordprocessingml/2006/main'}):
+                    if t.text:
+                        para_text += t.text
+            
+            para_text = para_text.strip()
+            if not para_text:
+                continue
+            
+            # Get numbering label using our resolver
+            label = resolver.get_label(element)
+            full_text = f"{label} {para_text}".strip() if label else para_text
+            
+            # Check if this is a heading by outline level
+            is_heading = False
+            level = None
+            
+            pPr = element.find('{http://schemas.openxmlformats.org/wordprocessingml/2006/main}pPr')
+            if pPr is not None:
+                outline = pPr.find('{http://schemas.openxmlformats.org/wordprocessingml/2006/main}outlineLvl')
+                if outline is not None:
+                    is_heading = True
+                    level = int(outline.get('{http://schemas.openxmlformats.org/wordprocessingml/2006/main}val')) + 1
+            
+            # Also check by style if no outline level
+            if not is_heading:
+                # Find matching paragraph object to check style
+                para_idx = list(body).index(element)
+                para_count = 0
+                for p in doc.paragraphs:
+                    if para_count == para_idx:
+                        is_heading, level = is_heading_paragraph(p)
+                        break
+                    para_count += 1
+            
+            if is_heading and level is not None:
+                # Save previous block
                 if current_content:
                     content_text = "\n".join(current_content)
                     blocks.append({
@@ -141,32 +155,46 @@ def extract_audit_blocks(file_path: str) -> list:
                         "heading": current_heading,
                         "content": content_text,
                         "type": "text",
-                        "parent_headings": current_heading_stack[:-1]
+                        "parent_headings": current_heading_stack[:-1] if current_heading_stack else []
                     })
                     current_content = []
-
-                # Convert table to JSON structure
-                table = node.as_table()
-                table_data = []
-
-                for row in table.rows:
-                    row_data = []
-                    for cell in row.as_row().cells:
-                        # Get cell text, remove control characters
-                        cell_text = cell.get_text().strip().replace('\x07', '')
-                        row_data.append(cell_text)
-                    table_data.append(row_data)
-
+                
+                # Update heading stack
+                current_heading_stack = current_heading_stack[:max(level - 1, 0)]
+                current_heading_stack.append(full_text)
+                current_heading = full_text
+            else:
+                current_content.append(full_text)
+        
+        elif tag == 'tbl':  # Table
+            # Save pending text content
+            if current_content:
+                content_text = "\n".join(current_content)
+                blocks.append({
+                    "uuid": generate_content_uuid(current_heading, content_text, len(blocks)),
+                    "heading": current_heading,
+                    "content": content_text,
+                    "type": "text",
+                    "parent_headings": current_heading_stack[:-1] if current_heading_stack else []
+                })
+                current_content = []
+            
+            # Find corresponding table object
+            table_idx = sum(1 for e in list(body)[:list(body).index(element)] if e.tag.endswith('tbl'))
+            if table_idx < len(doc.tables):
+                table = doc.tables[table_idx]
+                table_data = TableExtractor.extract(table, numbering_resolver=resolver)
+                
                 table_heading = f"Table (under: {current_heading})"
                 blocks.append({
                     "uuid": generate_content_uuid(table_heading, table_data, len(blocks)),
                     "heading": table_heading,
                     "content": table_data,
                     "type": "table",
-                    "parent_headings": current_heading_stack[:-1]
+                    "parent_headings": current_heading_stack[:-1] if current_heading_stack else []
                 })
-
-    # Don't forget the last block
+    
+    # Save final block
     if current_content:
         content_text = "\n".join(current_content)
         blocks.append({
@@ -174,9 +202,9 @@ def extract_audit_blocks(file_path: str) -> list:
             "heading": current_heading,
             "content": content_text,
             "type": "text",
-            "parent_headings": current_heading_stack[:-1]
+            "parent_headings": current_heading_stack[:-1] if current_heading_stack else []
         })
-
+    
     return blocks
 
 
