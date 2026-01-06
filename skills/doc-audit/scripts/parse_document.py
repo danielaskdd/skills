@@ -209,32 +209,15 @@ def extract_audit_blocks(file_path: str) -> list:
                 current_content.append(full_text)
         
         elif tag == 'tbl':  # Table
-            # Save pending text content
-            if current_content:
-                content_text = "\n".join(current_content)
-                blocks.append({
-                    "uuid": generate_content_uuid(current_heading, content_text, len(blocks)),
-                    "heading": current_heading,
-                    "content": content_text,
-                    "type": "text",
-                    "parent_headings": current_heading_stack[:-1] if current_heading_stack else []
-                })
-                current_content = []
-            
-            # Find corresponding table object
+            # Find corresponding table object and append to current content
             table_idx = sum(1 for e in list(body)[:list(body).index(element)] if e.tag.endswith('tbl'))
             if table_idx < len(doc.tables):
                 table = doc.tables[table_idx]
                 table_data = TableExtractor.extract(table, numbering_resolver=resolver)
                 
-                table_heading = f"Table (under: {current_heading})"
-                blocks.append({
-                    "uuid": generate_content_uuid(table_heading, table_data, len(blocks)),
-                    "heading": table_heading,
-                    "content": table_data,
-                    "type": "table",
-                    "parent_headings": current_heading_stack[:-1] if current_heading_stack else []
-                })
+                # Convert table to JSON and append as <table>JSON</table>
+                table_json = json.dumps(table_data, ensure_ascii=False)
+                current_content.append(f"<table>{table_json}</table>")
     
     # Save final block
     if current_content:
@@ -371,13 +354,7 @@ def main():
     # Extract blocks
     print(f"Parsing document: {args.document}")
     blocks = extract_audit_blocks(args.document)
-    print(f"Extracted {len(blocks)} blocks")
-
-    # Count by type
-    text_blocks = sum(1 for b in blocks if b['type'] == 'text')
-    table_blocks = sum(1 for b in blocks if b['type'] == 'table')
-    print(f"  - Text blocks: {text_blocks}")
-    print(f"  - Table blocks: {table_blocks}")
+    print(f"Extracted {len(blocks)} text blocks")
 
     # Print statistics
     if args.stats:
@@ -386,10 +363,7 @@ def main():
         total_chars = 0
         for block in blocks:
             headings.add(block['heading'])
-            if block['type'] == 'text':
-                total_chars += len(block['content'])
-            elif block['type'] == 'table':
-                total_chars += sum(len(str(cell)) for row in block['content'] for cell in row)
+            total_chars += len(block['content'])
 
         print(f"Unique headings: {len(headings)}")
         print(f"Total characters: {total_chars:,}")
@@ -401,16 +375,10 @@ def main():
         for i, block in enumerate(blocks[:5]):
             print(f"\n[Block {i+1}] {block['heading']}")
             print(f"Type: {block['type']}")
-            if block['type'] == 'text':
-                content = block['content'][:200]
-                if len(block['content']) > 200:
-                    content += "..."
-                print(f"Content: {content}")
-            else:
-                print(f"Table ({len(block['content'])} rows):")
-                print(format_table_for_display(block['content'][:3]))
-                if len(block['content']) > 3:
-                    print("...")
+            content = block['content'][:300]
+            if len(block['content']) > 300:
+                content += "..."
+            print(f"Content: {content}")
 
     # Determine output path
     if args.output:

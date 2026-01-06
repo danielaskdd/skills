@@ -258,7 +258,7 @@ python scripts/parse_document.py document.docx \
 
 - **Automatic numbering capture**: Extracts list labels (e.g., "1.1", "Chapter 1") via Aspose's `update_list_labels()`
 - **Heading-based splitting**: Each heading starts a new text block
-- **Table conversion**: Tables converted to structured 2D JSON arrays as independent blocks
+- **Table embedding**: Tables converted to `<table>JSON</table>` format and embedded in text blocks with surrounding paragraphs
 - **Heading hierarchy**: Preserves parent headings context for each block
 - **Deterministic UUIDs**: Generates consistent UUIDs from heading + content + position for reliable resume
 
@@ -275,10 +275,9 @@ python scripts/parse_document.py document.docx \
 
 **Output Format (JSONL):**
 
-Each line is a JSON object:
+Each line is a JSON object. Tables are embedded as `<table>JSON</table>` within text content:
 ```json
-{"uuid": "a1b2c3...", "heading": "2.1 Penalty Clause", "content": "If Party B delays...", "type": "text", "parent_headings": ["Chapter 2 Contract Terms"]}
-{"uuid": "d4e5f6...", "heading": "Table (under: 2.1 Penalty Clause)", "content": [["Header 1", "Header 2"], ["Cell 1", "Cell 2"]], "type": "table", "parent_headings": ["Chapter 2 Contract Terms", "2.1 Penalty Clause"]}
+{"uuid": "a1b2c3...", "heading": "2.1 Penalty Clause", "content": "If Party B delays...\n<table>[[\"Header 1\",\"Header 2\"],[\"Cell 1\",\"Cell 2\"]]</table>\nSubsequent paragraph...", "type": "text", "parent_headings": ["Chapter 2 Contract Terms"]}
 ```
 
 **Output Format (JSON):**
@@ -290,7 +289,7 @@ Each line is a JSON object:
     {
       "uuid": "a1b2c3d4e5f6...",
       "heading": "2.1 Penalty Clause",
-      "content": "If Party B delays payment...",
+      "content": "If Party B delays payment...\n<table>[[\"Penalty Type\",\"Amount\"],[\"Late Payment\",\"1% per day\"]]</table>\nThe above table shows penalty structure.",
       "type": "text",
       "parent_headings": ["Chapter 2 Contract Terms"]
     }
