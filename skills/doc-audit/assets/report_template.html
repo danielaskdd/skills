@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>文档审计报告 - Document Audit Report</title>
+    <title>文档审计报告 ({{ violation_count }}个问题)</title>
     <style>
         :root {
             --primary: #2563eb;
@@ -38,138 +38,165 @@
             color: var(--gray-800);
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh;
-            padding: 2rem;
+            padding-top: 140px;
+            padding-bottom: 2rem;
+        }
+
+        /* Fixed Header */
+        .fixed-header {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            background: white;
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
+            z-index: 100;
+            padding: 1rem 2rem;
+        }
+
+        .header-content {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .header-row-1 {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.5rem;
+            gap: 1rem;
+        }
+
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            flex: 1;
+        }
+
+        .header-title h1 {
+            font-size: 1.5rem;
+            color: var(--gray-900);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            white-space: nowrap;
+        }
+
+        .issue-stats {
+            font-size: 0.875rem;
+            padding: 0.25rem 0.75rem;
+            background: var(--gray-100);
+            border-radius: 999px;
+            color: var(--gray-700);
+            font-weight: 600;
+        }
+
+        .header-controls {
+            display: flex;
+            gap: 0.75rem;
+            align-items: center;
+        }
+
+        .header-row-2 {
+            display: flex;
+            align-items: center;
+        }
+
+        .file-info {
+            font-size: 0.75rem;
+            color: var(--gray-600);
+        }
+
+        .filter-group {
+            display: flex;
+            gap: 0.5rem;
+            align-items: center;
+        }
+
+        .filter-label {
+            font-size: 0.875rem;
+            color: var(--gray-600);
+            font-weight: 500;
+        }
+
+        select {
+            padding: 0.5rem 2rem 0.5rem 0.75rem;
+            border: 1px solid var(--gray-300);
+            border-radius: 8px;
+            background: white;
+            font-size: 0.875rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        select:hover {
+            border-color: var(--primary);
+        }
+
+        .status-filter {
+            display: flex;
+            gap: 0.25rem;
+            background: var(--gray-100);
+            padding: 0.25rem;
+            border-radius: 8px;
+        }
+
+        .status-btn {
+            padding: 0.5rem 1rem;
+            border: none;
+            background: transparent;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.875rem;
+            font-weight: 500;
+            color: var(--gray-700);
+            transition: all 0.2s;
+        }
+
+        .status-btn:hover {
+            background: var(--gray-200);
+        }
+
+        .status-btn.active {
+            background: var(--primary);
+            color: white;
+        }
+
+        .export-btn {
+            padding: 0.5rem 1.5rem;
+            background: var(--success);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.875rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            transition: all 0.2s;
+            margin-left: auto;
+        }
+
+        .export-btn:hover {
+            background: var(--success-light);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
         }
 
         .container {
             max-width: 1200px;
             margin: 0 auto;
+            padding: 0 2rem;
         }
 
-        header {
-            background: white;
-            padding: 2rem;
-            border-radius: 16px;
-            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06);
-            margin-bottom: 2rem;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        .header-content h1 {
-            color: var(--gray-900);
-            font-size: 1.75rem;
-            margin-bottom: 0.5rem;
-        }
-
-        .header-content .subtitle {
-            color: var(--gray-500);
-            font-size: 0.875rem;
-        }
-
-        .header-meta {
-            text-align: right;
-            color: var(--gray-600);
-            font-size: 0.875rem;
-        }
-
-        .stats-grid {
-            display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 1.5rem;
-            margin-bottom: 2rem;
-        }
-
-        @media (max-width: 768px) {
-            .stats-grid {
-                grid-template-columns: repeat(2, 1fr);
-            }
-        }
-
-        .stat-card {
-            background: white;
-            padding: 1.5rem;
-            border-radius: 12px;
-            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
-            text-align: center;
-            transition: transform 0.2s, box-shadow 0.2s;
-        }
-
-        .stat-card:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1);
-        }
-
-        .stat-card .icon {
-            font-size: 2rem;
-            margin-bottom: 0.5rem;
-        }
-
-        .stat-card h3 {
-            font-size: 0.75rem;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-            color: var(--gray-500);
-            margin-bottom: 0.5rem;
-        }
-
-        .stat-card .value {
-            font-size: 2.5rem;
-            font-weight: 700;
-            line-height: 1;
-        }
-
-        .stat-card.danger .value { color: var(--danger); }
-        .stat-card.warning .value { color: var(--warning); }
-        .stat-card.success .value { color: var(--success); }
-        .stat-card.primary .value { color: var(--primary); }
-
-        .section {
+        /* Issue Styles */
+        .issues-container {
             background: white;
             padding: 2rem;
             border-radius: 16px;
             box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
-            margin-bottom: 2rem;
-        }
-
-        .section-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 1.5rem;
-            padding-bottom: 1rem;
-            border-bottom: 2px solid var(--gray-100);
-        }
-
-        .section-header h2 {
-            font-size: 1.25rem;
-            color: var(--gray-800);
-        }
-
-        .filter-buttons {
-            display: flex;
-            gap: 0.5rem;
-        }
-
-        .filter-btn {
-            padding: 0.5rem 1rem;
-            border: 1px solid var(--gray-300);
-            background: white;
-            border-radius: 8px;
-            cursor: pointer;
-            font-size: 0.875rem;
-            transition: all 0.2s;
-        }
-
-        .filter-btn:hover {
-            background: var(--gray-50);
-        }
-
-        .filter-btn.active {
-            background: var(--primary);
-            color: white;
-            border-color: var(--primary);
         }
 
         .issue {
@@ -181,7 +208,17 @@
             border-left: 4px solid var(--primary);
         }
 
-        .issue:hover {
+        .issue.blocked {
+            opacity: 0.5;
+            background: var(--gray-50);
+            border-left-color: var(--gray-400);
+        }
+
+        .issue.blocked .issue-title {
+            text-decoration: line-through;
+        }
+
+        .issue:hover:not(.blocked) {
             box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
         }
 
@@ -192,10 +229,9 @@
             margin-bottom: 1rem;
         }
 
-        .issue-title {
-            font-weight: 600;
-            color: var(--gray-800);
-            font-size: 1rem;
+        .issue-title-row {
+            display: flex;
+            align-items: center;
         }
 
         .issue-number {
@@ -211,6 +247,16 @@
             font-size: 0.875rem;
             font-weight: 600;
             margin-right: 0.75rem;
+        }
+
+        .issue.blocked .issue-number {
+            background: var(--gray-400);
+        }
+
+        .issue-title {
+            font-weight: 600;
+            color: var(--gray-800);
+            font-size: 1rem;
         }
 
         .issue-badges {
@@ -240,142 +286,6 @@
             transform: scale(1.05);
         }
 
-        /* Modal Styles */
-        .modal-overlay {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.5);
-            backdrop-filter: blur(4px);
-            z-index: 1000;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .modal-overlay.active {
-            display: flex;
-        }
-
-        .modal-content {
-            background: white;
-            border-radius: 16px;
-            box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04);
-            max-width: 600px;
-            width: 90%;
-            max-height: 80vh;
-            overflow-y: auto;
-            animation: modalSlideIn 0.3s ease-out;
-        }
-
-        @keyframes modalSlideIn {
-            from {
-                opacity: 0;
-                transform: translateY(-20px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-
-        .modal-header {
-            padding: 1.5rem;
-            border-bottom: 1px solid var(--gray-200);
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            flex-wrap: wrap;
-            gap: 0.5rem;
-        }
-
-        .modal-title {
-            display: flex;
-            align-items: center;
-            gap: 0.75rem;
-            flex-wrap: wrap;
-        }
-
-        .modal-rule-id {
-            font-size: 1.25rem;
-            font-weight: 700;
-            color: var(--primary);
-        }
-
-        .modal-meta {
-            display: flex;
-            gap: 0.5rem;
-        }
-
-        .severity-badge {
-            padding: 0.25rem 0.75rem;
-            border-radius: 9999px;
-            font-size: 0.75rem;
-            font-weight: 600;
-            text-transform: uppercase;
-            color: white;
-        }
-
-        .severity-high {
-            background: var(--danger);
-        }
-
-        .severity-medium {
-            background: var(--warning);
-        }
-
-        .severity-low {
-            background: var(--gray-400);
-        }
-
-        .modal-close {
-            width: 32px;
-            height: 32px;
-            border: none;
-            background: var(--gray-100);
-            border-radius: 50%;
-            cursor: pointer;
-            font-size: 1.5rem;
-            line-height: 1;
-            color: var(--gray-600);
-            transition: all 0.2s;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .modal-close:hover {
-            background: var(--gray-200);
-            color: var(--gray-900);
-        }
-
-        .modal-body {
-            padding: 1.5rem;
-        }
-
-        .modal-section {
-            margin-bottom: 1.5rem;
-        }
-
-        .modal-section:last-child {
-            margin-bottom: 0;
-        }
-
-        .modal-section-title {
-            font-size: 0.75rem;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-            color: var(--gray-500);
-            margin-bottom: 0.5rem;
-        }
-
-        .modal-section-content {
-            color: var(--gray-700);
-            line-height: 1.6;
-        }
-
         .issue-content {
             margin-bottom: 1rem;
         }
@@ -398,38 +308,31 @@
             white-space: pre-wrap;
             word-break: break-word;
             border: 1px solid var(--gray-200);
+            max-height: 4.8em;
+            overflow: hidden;
             position: relative;
             cursor: pointer;
             transition: all 0.3s ease;
         }
 
-        .source-text.collapsed {
-            max-height: 3.2em;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-        }
-
-        .source-text.collapsed::after {
-            content: ' ▼';
-            color: var(--primary);
-            font-size: 0.75rem;
-            margin-left: 0.5rem;
-        }
-
         .source-text.expanded {
             max-height: none;
-            white-space: pre-wrap;
+        }
+
+        .source-text::after {
+            content: '... 点击展开▼';
+            position: absolute;
+            bottom: 0.5rem;
+            right: 0.5rem;
+            background: var(--gray-100);
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            color: var(--primary);
         }
 
         .source-text.expanded::after {
-            content: ' ▲';
-            color: var(--primary);
-            font-size: 0.75rem;
-            margin-left: 0.5rem;
-            position: absolute;
-            right: 1rem;
-            top: 0.5rem;
+            content: '收起▲';
         }
 
         .source-text:hover {
@@ -450,12 +353,17 @@
             color: var(--gray-700);
         }
 
-        .reason-text {
-            color: var(--gray-700);
-            padding: 0.75rem;
-            background: var(--gray-50);
+        .revised-text {
+            background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);
+            padding: 1rem;
             border-radius: 8px;
-            border-left: 3px solid var(--primary);
+            border: 1px solid #a7f3d0;
+            color: #065f46;
+            font-family: 'SF Mono', 'Fira Code', Consolas, monospace;
+            font-size: 0.875rem;
+            white-space: pre-wrap;
+            word-break: break-word;
+            margin-top: 0.5rem;
         }
 
         .suggestion {
@@ -470,7 +378,20 @@
             content: '💡 ';
         }
 
-        /* Fix action badge styles */
+        .reason-text {
+            color: var(--gray-700);
+            padding: 0.75rem;
+            background: var(--gray-50);
+            border-radius: 8px;
+            border-left: 3px solid var(--primary);
+        }
+
+        .fix-action-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
         .fix-action-badge {
             display: inline-flex;
             align-items: center;
@@ -499,75 +420,32 @@
             border: 1px solid #fcd34d;
         }
 
-        /* Revised text style (for delete/replace actions) */
-        .revised-text {
-            background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);
-            padding: 1rem;
-            border-radius: 8px;
-            border: 1px solid #a7f3d0;
-            color: #065f46;
-            font-family: 'SF Mono', 'Fira Code', Consolas, monospace;
-            font-size: 0.875rem;
-            white-space: pre-wrap;
-            word-break: break-word;
-        }
-
-        .revised-text::before {
-            content: '✅ ';
-        }
-
-        .distribution-section {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 2rem;
-        }
-
-        @media (max-width: 768px) {
-            .distribution-section {
-                grid-template-columns: 1fr;
-            }
-        }
-
-        .chart-container h3 {
-            font-size: 0.875rem;
-            color: var(--gray-600);
-            margin-bottom: 1rem;
-        }
-
-        .chart-item {
+        .block-toggle {
             display: flex;
             align-items: center;
-            gap: 1rem;
-            margin-bottom: 0.75rem;
+            flex-direction: row-reverse;
+            gap: 0.5rem;
+            cursor: pointer;
+            user-select: none;
+            padding: 0.5rem 0.75rem;
+            border-radius: 6px;
+            transition: all 0.2s;
         }
 
-        .chart-label {
-            width: 100px;
-            font-size: 0.875rem;
-            color: var(--gray-600);
+        .block-toggle:hover {
+            background: var(--gray-50);
         }
 
-        .chart-bar-container {
-            flex: 1;
-            height: 24px;
-            background: var(--gray-100);
-            border-radius: 4px;
-            overflow: hidden;
+        .block-checkbox {
+            width: 20px;
+            height: 20px;
+            cursor: pointer;
         }
 
-        .chart-bar {
-            height: 100%;
-            border-radius: 4px;
-            transition: width 0.5s ease;
-        }
-
-        .chart-bar.category { background: linear-gradient(90deg, var(--primary) 0%, var(--primary-light) 100%); }
-
-        .chart-value {
-            width: 40px;
-            text-align: right;
-            font-weight: 600;
-            color: var(--gray-700);
+        .block-toggle span {
+            font-size: 0.9rem;
+            color: var(--warning);
+            font-weight: 700;
         }
 
         .no-issues {
@@ -586,6 +464,108 @@
             margin-bottom: 0.5rem;
         }
 
+        /* Modal Styles */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(4px);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-overlay.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1);
+            max-width: 600px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+            animation: modalSlideIn 0.3s ease-out;
+        }
+
+        @keyframes modalSlideIn {
+            from { opacity: 0; transform: translateY(-20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .modal-header {
+            padding: 1.5rem;
+            border-bottom: 1px solid var(--gray-200);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-title {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .modal-rule-id {
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: var(--primary);
+        }
+
+        .severity-badge {
+            padding: 0.25rem 0.75rem;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            color: white;
+        }
+
+        .severity-high { background: var(--danger); }
+        .severity-medium { background: var(--warning); }
+        .severity-low { background: var(--gray-400); }
+
+        .modal-close {
+            width: 32px;
+            height: 32px;
+            border: none;
+            background: var(--gray-100);
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 1.5rem;
+            line-height: 1;
+            color: var(--gray-600);
+            transition: all 0.2s;
+        }
+
+        .modal-close:hover {
+            background: var(--gray-200);
+        }
+
+        .modal-body {
+            padding: 1.5rem;
+        }
+
+        .modal-section-title {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--gray-500);
+            margin-bottom: 0.5rem;
+        }
+
+        .modal-section-content {
+            color: var(--gray-700);
+            line-height: 1.6;
+        }
+
         footer {
             text-align: center;
             color: white;
@@ -594,83 +574,66 @@
             opacity: 0.8;
         }
 
-        footer a {
-            color: white;
-            text-decoration: underline;
-        }
-
-        @media print {
-            body {
-                background: white;
-                padding: 0;
-            }
-            .container { max-width: none; }
-            .section, header, .stat-card {
-                box-shadow: none;
-                border: 1px solid var(--gray-200);
-                break-inside: avoid;
-            }
-            .filter-buttons { display: none; }
-            footer { color: var(--gray-600); }
+        @media (max-width: 768px) {
+            body { padding-top: 180px; }
+            .header-row-2 { flex-direction: column; align-items: stretch; }
+            .export-btn { margin-left: 0; width: 100%; justify-content: center; }
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <header>
-            <div class="header-content">
-                <h1>📋 文档审计报告</h1>
-                <p class="subtitle">Document Audit Report</p>
-            </div>
-            <div class="header-meta">
-                <div>生成时间: {{ generated_at }}</div>
-                <div>审计块数: {{ total_blocks }}</div>
-            </div>
-        </header>
-
-        <div class="stats-grid">
-            <div class="stat-card {{ 'danger' if violation_count > 0 else 'success' }}">
-                <div class="icon">{{ '⚠️' if violation_count > 0 else '✅' }}</div>
-                <h3>问题总数</h3>
-                <div class="value">{{ violation_count }}</div>
-            </div>
-            <div class="stat-card primary">
-                <div class="icon">📄</div>
-                <h3>审计块数</h3>
-                <div class="value">{{ total_blocks }}</div>
-            </div>
-        </div>
-
-        <div class="section">
-            <div class="section-header">
-                <h2>📊 问题分布</h2>
-            </div>
-            <div class="distribution-section">
-                <div class="chart-container">
-                    <h3>按问题类型</h3>
-                    {% for category, count in category_counts.items() %}
-                    <div class="chart-item">
-                        <span class="chart-label">{{ category }}</span>
-                        <div class="chart-bar-container">
-                            <div class="chart-bar category" style="width: {{ (count / max_category_count * 100) if max_category_count > 0 else 0 }}%"></div>
-                        </div>
-                        <span class="chart-value">{{ count }}</span>
+    <!-- Fixed Header -->
+    <div class="fixed-header">
+        <div class="header-content">
+            <div class="header-row-1">
+                <div class="header-left">
+                    <h1>
+                        📋 文档审计报告
+                        <span class="issue-stats" id="issueStats">
+                            有效: <span id="validCount">{{ violation_count }}</span> | 
+                            屏蔽: <span id="blockedCount">0</span>
+                        </span>
+                    </h1>
+                </div>
+                <div class="header-controls">
+                    <div class="filter-group">
+                        <span class="filter-label">类型:</span>
+                        <select id="categoryFilter" onchange="applyFilters()">
+                            <option value="all">全部类型</option>
+                            {% for category in category_counts.keys() %}
+                            <option value="{{ category }}">{{ category }}</option>
+                            {% endfor %}
+                        </select>
                     </div>
-                    {% endfor %}
+                    <div class="filter-group">
+                        <span class="filter-label">状态:</span>
+                        <div class="status-filter">
+                            <button class="status-btn active" data-status="all" onclick="filterByStatus('all')">全部</button>
+                            <button class="status-btn" data-status="valid" onclick="filterByStatus('valid')">有效</button>
+                            <button class="status-btn" data-status="blocked" onclick="filterByStatus('blocked')">屏蔽</button>
+                        </div>
+                    </div>
+                    <button class="export-btn" onclick="exportResults()">
+                        <span>💾</span>
+                        <span>导出审核结果</span>
+                    </button>
+                </div>
+            </div>
+            <div class="header-row-2">
+                <div class="file-info">
+                    📄 <span id="filePathDisplay"></span>
                 </div>
             </div>
         </div>
+    </div>
 
-        <div class="section">
-            <div class="section-header">
-                <h2>🔍 问题详情 ({{ violation_count }})</h2>
-            </div>
-
+    <div class="container">
+        <div class="issues-container">
             {% if violations %}
                 {% for v in violations %}
-                <div class="issue">
+                <div class="issue" data-category="{{ v.category }}" data-index="{{ loop.index }}">
                     <div class="issue-header">
-                        <div>
+                        <div class="issue-title-row">
                             <span class="issue-number">{{ loop.index }}</span>
                             <span class="issue-title">{{ v.heading }}</span>
                         </div>
@@ -682,13 +645,16 @@
 
                     <div class="issue-content">
                         <label>原文内容</label>
-                        <div class="source-text collapsed" onclick="toggleExpand(this)">{{ v.content }}</div>
+                        <div class="source-text" onclick="toggleExpand(this)">{{ v.content }}</div>
                     </div>
 
                     {% if v.violation_text %}
                     <div class="issue-content">
-                        <label>违规文本</label>
+                        <label>违规文本/修改内容</label>
                         <div class="violation-text">{{ v.violation_text }}</div>
+                        {% if v.revised_text %}
+                        <div class="{% if v.fix_action == 'manual' %}suggestion{% else %}revised-text{% endif %}">{{ v.revised_text }}</div>
+                        {% endif %}
                     </div>
                     {% endif %}
 
@@ -700,19 +666,18 @@
                     {% if v.fix_action %}
                     <div class="issue-content">
                         <label>修正动作</label>
-                        <div class="fix-action-badge {{ v.fix_action }}">
-                            {% if v.fix_action == 'delete' %}🗑️ 删除
-                            {% elif v.fix_action == 'replace' %}✏️ 替换
-                            {% else %}👤 人工审核
-                            {% endif %}
+                        <div class="fix-action-row">
+                            <div class="fix-action-badge {{ v.fix_action }}">
+                                {% if v.fix_action == 'delete' %}🗑️ 删除
+                                {% elif v.fix_action == 'replace' %}✏️ 替换
+                                {% else %}👤 人工审核
+                                {% endif %}
+                            </div>
+                            <label class="block-toggle">
+                                <span>屏蔽本条</span>
+                                <input type="checkbox" class="block-checkbox" onchange="toggleBlock(this, {{ loop.index }})">
+                            </label>
                         </div>
-                    </div>
-                    {% endif %}
-
-                    {% if v.revised_text %}
-                    <div class="issue-content">
-                        <label>{% if v.fix_action == 'manual' %}人工修改建议{% else %}修正内容{% endif %}</label>
-                        <div class="{% if v.fix_action == 'manual' %}suggestion{% else %}revised-text{% endif %}">{{ v.revised_text }}</div>
                     </div>
                     {% endif %}
                 </div>
@@ -725,12 +690,12 @@
                 </div>
             {% endif %}
         </div>
-
-        <footer>
-            <p>Generated by Document Audit Skill v1.0.0</p>
-            <p>Powered by Aspose.Words + LLM</p>
-        </footer>
     </div>
+
+    <footer>
+        <p>Generated by Document Audit Skill v1.0.0</p>
+        <p>Source: {{ source_file }}</p>
+    </footer>
 
     <!-- Rule Details Modal -->
     <div class="modal-overlay" id="ruleModal" onclick="closeModal(event)">
@@ -738,34 +703,143 @@
             <div class="modal-header">
                 <div class="modal-title">
                     <span class="modal-rule-id" id="modal-rule-id"></span>
-                    <div class="modal-meta">
-                        <span class="badge category" id="modal-category"></span>
-                        <span class="severity-badge" id="modal-severity"></span>
-                    </div>
+                    <span class="badge category" id="modal-category"></span>
+                    <span class="severity-badge" id="modal-severity"></span>
                 </div>
                 <button class="modal-close" onclick="closeModal()">&times;</button>
             </div>
             <div class="modal-body">
-                <div class="modal-section">
-                    <div class="modal-section-title">Rule Description</div>
-                    <div class="modal-section-content" id="modal-description"></div>
-                </div>
+                <div class="modal-section-title">Rule Description</div>
+                <div class="modal-section-content" id="modal-description"></div>
             </div>
         </div>
     </div>
 
     <script>
-        // Rules data from Python
+        // Data from Python
         const RULES = {{ rules | tojson }};
+        const SOURCE_FILE = {{ source_file | tojson }};
+        const SOURCE_HASH = {{ source_hash | tojson }};
+        const VIOLATIONS = {{ violations | tojson }};
+        
+        let currentCategoryFilter = 'all';
+        let currentStatusFilter = 'all';
 
         function toggleExpand(element) {
-            if (element.classList.contains('collapsed')) {
-                element.classList.remove('collapsed');
-                element.classList.add('expanded');
+            element.classList.toggle('expanded');
+        }
+
+        function toggleBlock(checkbox, index) {
+            const issue = document.querySelector(`.issue[data-index="${index}"]`);
+            if (checkbox.checked) {
+                issue.classList.add('blocked');
+                issue.setAttribute('data-blocked', 'true');
             } else {
-                element.classList.remove('expanded');
-                element.classList.add('collapsed');
+                issue.classList.remove('blocked');
+                issue.removeAttribute('data-blocked');
             }
+            updateStats();
+        }
+
+        function filterByStatus(status) {
+            currentStatusFilter = status;
+            document.querySelectorAll('.status-btn').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.status === status);
+            });
+            applyFilters();
+        }
+
+        function applyFilters() {
+            const categoryFilter = document.getElementById('categoryFilter').value;
+            currentCategoryFilter = categoryFilter;
+
+            document.querySelectorAll('.issue').forEach(issue => {
+                const category = issue.getAttribute('data-category');
+                const isBlocked = issue.hasAttribute('data-blocked');
+                
+                let showByCategory = (categoryFilter === 'all' || category === categoryFilter);
+                let showByStatus = (currentStatusFilter === 'all') ||
+                                 (currentStatusFilter === 'blocked' && isBlocked) ||
+                                 (currentStatusFilter === 'valid' && !isBlocked);
+                
+                issue.style.display = (showByCategory && showByStatus) ? 'block' : 'none';
+            });
+        }
+
+        function updateStats() {
+            const allIssues = document.querySelectorAll('.issue');
+            const blockedIssues = document.querySelectorAll('.issue[data-blocked="true"]');
+            
+            const validCount = allIssues.length - blockedIssues.length;
+            const blockedCount = blockedIssues.length;
+            
+            document.getElementById('validCount').textContent = validCount;
+            document.getElementById('blockedCount').textContent = blockedCount;
+        }
+
+        async function exportResults() {
+            // Prepare export data
+            const exportData = [];
+            
+            // Add metadata as first line
+            const metadata = {
+                type: 'meta',
+                source_file: SOURCE_FILE,
+                source_hash: SOURCE_HASH,
+                exported_at: new Date().toISOString()
+            };
+            exportData.push(JSON.stringify(metadata));
+            
+            // Add non-blocked violations
+            VIOLATIONS.forEach((v, index) => {
+                const issue = document.querySelector(`.issue[data-index="${index + 1}"]`);
+                if (!issue || issue.hasAttribute('data-blocked')) {
+                    return; // Skip blocked items
+                }
+                exportData.push(JSON.stringify(v));
+            });
+            
+            const content = exportData.join('\n');
+            // Extract filename without path and extension
+            const sourceFileName = SOURCE_FILE.split('/').pop().replace(/\.[^/.]+$/, '');
+            const filename = sourceFileName + '_audit_export.jsonl';
+            
+            // Try File System Access API first
+            if ('showSaveFilePicker' in window) {
+                try {
+                    const handle = await window.showSaveFilePicker({
+                        suggestedName: filename,
+                        startIn: 'downloads',
+                        types: [{
+                            description: 'JSONL Files',
+                            accept: { 'application/jsonl': ['.jsonl'] }
+                        }]
+                    });
+                    
+                    const writable = await handle.createWritable();
+                    await writable.write(content);
+                    await writable.close();
+                    
+                    alert('审核结果已成功导出！');
+                    return;
+                } catch (err) {
+                    if (err.name !== 'AbortError') {
+                        console.error('File System Access API error:', err);
+                    }
+                    // Fall through to blob download
+                }
+            }
+            
+            // Fallback: Traditional blob download
+            const blob = new Blob([content], { type: 'application/jsonl' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            a.click();
+            URL.revokeObjectURL(url);
+            
+            alert('审核结果已下载到浏览器默认下载文件夹！');
         }
 
         function showRuleModal(ruleId) {
@@ -775,33 +849,34 @@
                 return;
             }
 
-            // Populate modal content
             document.getElementById('modal-rule-id').textContent = rule.id;
             document.getElementById('modal-category').textContent = rule.category;
             document.getElementById('modal-description').textContent = rule.description || 'No description available';
 
-            // Set severity badge
             const severityBadge = document.getElementById('modal-severity');
             severityBadge.textContent = rule.severity;
             severityBadge.className = 'severity-badge severity-' + rule.severity;
 
-            // Show modal
             document.getElementById('ruleModal').classList.add('active');
         }
 
         function closeModal(event) {
-            // Only close if clicking overlay or close button, not modal content
             if (!event || event.target.id === 'ruleModal' || event.target.classList.contains('modal-close')) {
                 document.getElementById('ruleModal').classList.remove('active');
             }
         }
 
-        // Close modal on Escape key
         document.addEventListener('keydown', function(event) {
             if (event.key === 'Escape') {
                 closeModal();
             }
         });
+
+        // Initialize
+        updateStats();
+        
+        // Display full file path
+        document.getElementById('filePathDisplay').textContent = SOURCE_FILE;
     </script>
 </body>
 </html>

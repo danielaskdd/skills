@@ -73,17 +73,18 @@ AUDIT_RESULT_SCHEMA = {
 }
 
 
-def load_blocks(file_path: str) -> list:
+def load_blocks(file_path: str) -> tuple:
     """
-    Load text blocks from JSONL or JSON file.
+    Load text blocks and metadata from JSONL or JSON file.
 
     Args:
         file_path: Path to blocks file
 
     Returns:
-        List of block dictionaries
+        Tuple of (metadata dict, list of block dictionaries)
     """
     blocks = []
+    metadata = {}
     path = Path(file_path)
 
     if path.suffix == '.jsonl':
@@ -91,7 +92,12 @@ def load_blocks(file_path: str) -> list:
             for line in f:
                 line = line.strip()
                 if line:
-                    blocks.append(json.loads(line))
+                    entry = json.loads(line)
+                    # Check if this is metadata
+                    if entry.get('type') == 'meta':
+                        metadata = entry
+                    else:
+                        blocks.append(entry)
     else:
         with open(path, 'r', encoding='utf-8') as f:
             data = json.load(f)
@@ -99,10 +105,13 @@ def load_blocks(file_path: str) -> list:
                 blocks = data
             elif 'blocks' in data:
                 blocks = data['blocks']
+                # Extract metadata if present
+                if 'meta' in data:
+                    metadata = data['meta']
             else:
                 raise ValueError(f"Unknown JSON format in {file_path}")
 
-    return blocks
+    return metadata, blocks
 
 
 def load_rules(file_path: str) -> list:
@@ -496,8 +505,11 @@ def main():
 
     # Load inputs
     print(f"Loading blocks from: {args.document}")
-    blocks = load_blocks(args.document)
+    metadata, blocks = load_blocks(args.document)
     print(f"Loaded {len(blocks)} blocks")
+    if metadata:
+        print(f"Source file: {metadata.get('source_file', 'Unknown')}")
+        print(f"File hash: {metadata.get('source_hash', 'Unknown')[:20]}...")
 
     print(f"Loading rules from: {args.rules}")
     rules = load_rules(args.rules)
@@ -515,6 +527,17 @@ def main():
     if args.resume and Path(args.output).exists():
         completed_uuids = load_completed_uuids(args.output)
         print(f"Resuming: {len(completed_uuids)} blocks already processed")
+    else:
+        # Write metadata as first line for new manifest
+        if metadata:
+            from datetime import datetime
+            audit_metadata = {
+                **metadata,
+                "audited_at": datetime.now().isoformat()
+            }
+            with open(args.output, 'w', encoding='utf-8') as f:
+                f.write(json.dumps(audit_metadata, ensure_ascii=False) + '\n')
+            print(f"Created new manifest with source file metadata")
 
     # Determine block range
     start_idx = args.start_block

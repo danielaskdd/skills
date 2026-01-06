@@ -5,8 +5,10 @@ ABOUTME: Extracts automatic numbering, splits by headings, converts tables to JS
 """
 
 import argparse
+import hashlib
 import json
 import sys
+from datetime import datetime
 from pathlib import Path
 
 try:
@@ -270,6 +272,42 @@ def extract_audit_blocks(file_path: str) -> list:
     return blocks
 
 
+def calculate_file_hash(file_path: str) -> str:
+    """
+    Calculate SHA256 hash of a file.
+
+    Args:
+        file_path: Path to file
+
+    Returns:
+        Hash string in format "sha256:hexdigest"
+    """
+    sha256_hash = hashlib.sha256()
+    with open(file_path, "rb") as f:
+        for byte_block in iter(lambda: f.read(4096), b""):
+            sha256_hash.update(byte_block)
+    return f"sha256:{sha256_hash.hexdigest()}"
+
+
+def create_metadata(file_path: str) -> dict:
+    """
+    Create metadata object for source document.
+
+    Args:
+        file_path: Path to source document
+
+    Returns:
+        Metadata dictionary with type, source file info, hash, and timestamp
+    """
+    doc_path = Path(file_path).resolve()
+    return {
+        "type": "meta",
+        "source_file": str(doc_path),
+        "source_hash": calculate_file_hash(file_path),
+        "parsed_at": datetime.now().isoformat()
+    }
+
+
 def format_table_for_display(table_data: list) -> str:
     """
     Format table data as readable text for display.
@@ -303,16 +341,22 @@ def format_table_for_display(table_data: list) -> str:
     return "\n".join(lines)
 
 
-def save_blocks_jsonl(blocks: list, output_path: str):
+def save_blocks_jsonl(blocks: list, output_path: str, metadata: dict = None):
     """
     Save blocks to JSONL format (one JSON object per line).
+    First line contains metadata if provided.
     Also removes existing manifest.jsonl to ensure clean resume state.
 
     Args:
         blocks: List of block dictionaries
         output_path: Path to output file
+        metadata: Optional metadata dictionary to write as first line
     """
     with open(output_path, 'w', encoding='utf-8') as f:
+        # Write metadata as first line if provided
+        if metadata:
+            f.write(json.dumps(metadata, ensure_ascii=False) + '\n')
+        # Write all blocks
         for block in blocks:
             f.write(json.dumps(block, ensure_ascii=False) + '\n')
     
@@ -323,7 +367,7 @@ def save_blocks_jsonl(blocks: list, output_path: str):
         print(f"Removed existing manifest: {manifest_path}")
 
 
-def save_blocks_json(blocks: list, output_path: str):
+def save_blocks_json(blocks: list, output_path: str, metadata: dict = None):
     """
     Save blocks to regular JSON format.
     Also removes existing manifest.jsonl to ensure clean resume state.
@@ -331,12 +375,19 @@ def save_blocks_json(blocks: list, output_path: str):
     Args:
         blocks: List of block dictionaries
         output_path: Path to output file
+        metadata: Optional metadata dictionary to include in output
     """
+    output_data = {
+        "total_blocks": len(blocks),
+        "blocks": blocks
+    }
+    
+    # Add metadata if provided
+    if metadata:
+        output_data["meta"] = metadata
+    
     with open(output_path, 'w', encoding='utf-8') as f:
-        json.dump({
-            "total_blocks": len(blocks),
-            "blocks": blocks
-        }, f, indent=2, ensure_ascii=False)
+        json.dump(output_data, f, indent=2, ensure_ascii=False)
     
     # Clean up old manifest.jsonl to prevent UUID mismatch in resume mode
     manifest_path = Path(output_path).parent / "manifest.jsonl"
@@ -423,13 +474,18 @@ def main():
     else:
         output_path = doc_path.stem + "_blocks." + args.format
 
-    # Save output
+    # Create metadata
+    metadata = create_metadata(args.document)
+    print(f"Calculated file hash: {metadata['source_hash'][:20]}...")
+
+    # Save output with metadata
     if args.format == "jsonl":
-        save_blocks_jsonl(blocks, output_path)
+        save_blocks_jsonl(blocks, output_path, metadata)
     else:
-        save_blocks_json(blocks, output_path)
+        save_blocks_json(blocks, output_path, metadata)
 
     print(f"\nSaved to: {output_path}")
+    print(f"Source file: {metadata['source_file']}")
 
 
 if __name__ == "__main__":

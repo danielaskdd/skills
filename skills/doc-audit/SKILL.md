@@ -257,6 +257,9 @@ python scripts/parse_document.py document.docx \
 
 **Features:**
 
+- **File Metadata**: Includes source file path, SHA256 hash, and parse timestamp
+  - JSONL: First line contains metadata (type: "meta")
+  - JSON: Top-level "meta" field with metadata
 - **Automatic numbering capture**: Extracts list labels (e.g., "1.1", "Chapter 1") via Aspose's `update_list_labels()`
 - **Heading-based splitting**: Each heading starts a new text block
 - **Table embedding**: Tables converted to `<table>JSON</table>` format and embedded in text blocks with surrounding paragraphs
@@ -523,9 +526,24 @@ python skills/doc-audit/scripts/generate_report.py manifest.jsonl \
 
 **Features:**
 
-- **Statistics Dashboard**: Total blocks, violation count, category distribution
+- **File Information Header**: Displays source document filename and hash (from metadata)
+- **Interactive Fixed Header**:
+  - Problem count displayed in title (Valid: N | Blocked: M)
+  - Category filter dropdown
+  - Status filter buttons (All / Valid / Blocked)
+  - Export audit results button
+- **Dynamic Statistics**: Real-time updates of valid/blocked counts as users interact
+- **Issue Management**:
+  - Each issue can be marked as "blocked" (false positive)
+  - Blocked issues shown with gray styling and strikethrough
+  - Filter issues by category and blocked status
+- **Export Functionality**:
+  - Export non-blocked violations to JSONL format
+  - Uses File System Access API for native save dialog
+  - Includes metadata (source file, hash, export timestamp)
+  - Falls back to traditional download for unsupported browsers
 - **Issue Details**: Each violation with heading, content, reason, and suggestion
-- **Source Tracing**: Clickable headings that show full context
+- **Source Tracing**: Expandable source text with click-to-expand/collapse
 - **Rule Information**: Clickable rule badges (e.g., `[R001]`) that display full rule details in modal popups (when `--rules` is provided)
 - **HTML Safety**: Escapes HTML by default; use `--trusted-html` only if all inputs are trusted
 

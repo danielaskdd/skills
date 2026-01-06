@@ -20,23 +20,29 @@ except ImportError:
     sys.exit(1)
 
 
-def load_manifest(file_path: str) -> list:
+def load_manifest(file_path: str) -> tuple:
     """
-    Load audit results from manifest JSONL file.
+    Load audit results and metadata from manifest JSONL file.
 
     Args:
         file_path: Path to manifest file
 
     Returns:
-        List of audit result dictionaries
+        Tuple of (metadata dict, list of audit result dictionaries)
     """
+    metadata = {}
     results = []
     with open(file_path, 'r', encoding='utf-8') as f:
         for line in f:
             line = line.strip()
             if line:
-                results.append(json.loads(line))
-    return results
+                entry = json.loads(line)
+                # Check if this is metadata
+                if entry.get('type') == 'meta':
+                    metadata = entry
+                else:
+                    results.append(entry)
+    return metadata, results
 
 
 def load_rules(file_path: str) -> dict:
@@ -311,11 +317,29 @@ def main():
 
     # Load and process manifest
     print(f"Loading manifest: {args.manifest}")
-    manifest = load_manifest(args.manifest)
+    metadata, manifest = load_manifest(args.manifest)
     print(f"Loaded {len(manifest)} entries")
+    
+    # Display source file info if available
+    if metadata:
+        print(f"Source file: {metadata.get('source_file', 'Unknown')}")
+        print(f"File hash: {metadata.get('source_hash', 'Unknown')[:20]}...")
 
     # Generate report data
     data = generate_report_data(manifest, rules_dict)
+    
+    # Add metadata to report data
+    if metadata:
+        data['source_file'] = metadata.get('source_file', 'Unknown')
+        data['source_hash'] = metadata.get('source_hash', '')
+        data['parsed_at'] = metadata.get('parsed_at', '')
+        data['audited_at'] = metadata.get('audited_at', '')
+    else:
+        data['source_file'] = 'Unknown'
+        data['source_hash'] = ''
+        data['parsed_at'] = ''
+        data['audited_at'] = ''
+    
     print(f"Found {data['violation_count']} issues")
 
     # Render HTML
