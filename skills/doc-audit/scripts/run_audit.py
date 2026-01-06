@@ -149,9 +149,11 @@ def format_block_for_prompt(block: dict) -> str:
     block_type = block.get('type', 'text')
     parent_headings = block.get('parent_headings', [])
 
+    ### Context format
+    # Context hierarchy: 1  header1 → 1.2  header2 → 1.2.2  header3
     context = ""
     if parent_headings:
-        context = f"Context hierarchy: {' > '.join(parent_headings)}\n"
+        context = f"Context hierarchy: {' → '.join(parent_headings)}\n"
 
     if block_type == 'table':
         # Format table as readable text
@@ -163,6 +165,7 @@ def format_block_for_prompt(block: dict) -> str:
 
     return f"""Section: {heading}
 {context}
+
 Content:
 {content}"""
 
