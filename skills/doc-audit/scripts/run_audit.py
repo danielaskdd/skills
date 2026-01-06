@@ -49,18 +49,23 @@ AUDIT_RESULT_SCHEMA = {
                     },
                     "violation_text": {
                         "type": "string",
-                        "description": "The specific problematic text"
+                        "description": "The problematic text with sufficient surrounding context for unique string matching in the document"
                     },
                     "violation_reason": {
                         "type": "string",
                         "description": "Explanation of why this violates the rule"
                     },
-                    "suggestion": {
+                    "fix_action": {
                         "type": "string",
-                        "description": "Suggested correction"
+                        "enum": ["delete", "replace", "manual"],
+                        "description": "Action type: delete removes the text, replace substitutes it, manual requires human review"
+                    },
+                    "revised_text": {
+                        "type": "string",
+                        "description": "For replace: complete replacement text. For delete: empty string. For manual: additional guidance for human reviewer"
                     }
                 },
-                "required": ["rule_id", "violation_text", "violation_reason", "suggestion"]
+                "required": ["rule_id", "violation_text", "violation_reason", "fix_action", "revised_text"]
             }
         }
     },
@@ -214,11 +219,20 @@ Instructions:
 1. Check if the provided text block violates ANY of the rules above
 2. For each violation found, provide:
    - The rule ID that was violated
-   - The specific text that violates the rule
+   - The violation text with enough surrounding context for unique string matching
    - Why it's a violation
-   - A suggested correction
+   - The fix action: "delete", "replace", or "manual"
+   - The revised text based on fix_action
 
-IMPORTANT: All output text including violation_reason and suggestion MUST be written in {output_language}.
+fix_action guidelines:
+- "delete": Use when the problematic text should be completely removed
+- "replace": Use when the text can be corrected with a specific replacement
+- "manual": Use when the fix requires human judgment or complex restructuring
+
+revised_text guidelines:
+- For "delete": Set to empty string ""
+- For "replace": Provide the complete replacement text that can directly substitute violation_text
+- For "manual": Provide guidance for the human reviewer
 
 Return your analysis as a JSON object with this structure:
 {{
@@ -226,9 +240,10 @@ Return your analysis as a JSON object with this structure:
   "violations": [
     {{
       "rule_id": "R001",
-      "violation_text": "the specific problematic text",
-      "violation_reason": "explanation of why this violates the rule",
-      "suggestion": "suggested correction"
+      "violation_text": "the specific problematic text with sufficient context",
+      "violation_reason": "explanation of why this violates the rule written in {output_language}",
+      "fix_action": "delete|replace|manual",
+      "revised_text": "corrected text in original language if fix_action is 'replace', otherwise guidance for human reviewer written in {output_language}"
     }}
   ]
 }}
@@ -563,14 +578,6 @@ def main():
                 "is_violation": is_violation,
                 "violations": violations_with_category
             }
-
-            # For backward compatibility with single-violation format
-            if entry['is_violation'] and violations_with_category:
-                first_violation = violations_with_category[0]
-                entry['category'] = first_violation.get('category', 'other')
-                entry['rule_id'] = first_violation.get('rule_id', '')
-                entry['violation_reason'] = first_violation.get('violation_reason', '')
-                entry['suggestion'] = first_violation.get('suggestion', '')
 
             # Save to manifest
             save_manifest_entry(args.output, entry)

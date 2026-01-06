@@ -468,17 +468,12 @@ Each line is an audit result:
       "category": "semantic",
       "violation_text": "approximately 1% of the total amount",
       "violation_reason": "Contains vague term 'approximately' and does not specify currency",
-      "suggestion": "Revise to: 'shall pay 1% of the contract total amount as penalty (settled in CNY).'"
+      "fix_action": "replace",
+      "revised_text": "1% of the contract total amount as penalty (settled in CNY)"
     }
-  ],
-  "category": "semantic",
-  "rule_id": "R002",
-  "violation_reason": "Contains vague term 'approximately' and does not specify currency",
-  "suggestion": "Revise to: 'shall pay 1% of the contract total amount as penalty (settled in CNY).'"
+  ]
 }
 ```
-
-**Note:** Top-level `category`, `rule_id`, `violation_reason`, and `suggestion` fields are for backward compatibility (populated from first violation).
 
 ### 5. Generate Report
 
@@ -671,7 +666,7 @@ If a required package or API key is missing, do not proceed with the workflow. P
 
 ### Audit Result Format
 
-The manifest entry written by `run_audit.py` contains both the `violations` array (all violations found) and backward-compatible single-violation fields:
+The manifest entry written by `run_audit.py` contains audit results with actionable fix information:
 
 ```json
 {
@@ -685,19 +680,25 @@ The manifest entry written by `run_audit.py` contains both the `violations` arra
       "category": "semantic",
       "violation_text": "approximately 1% of the total amount",
       "violation_reason": "Contains vague term 'approximately' and does not specify currency",
-      "suggestion": "Revise to: 'shall pay 1% of the contract total amount as penalty (settled in CNY).'"
+      "fix_action": "replace",
+      "revised_text": "1% of the contract total amount as penalty (settled in CNY)"
     }
-  ],
-  "category": "semantic",
-  "rule_id": "R002",
-  "violation_reason": "Contains vague term 'approximately' and does not specify currency",
-  "suggestion": "Revise to: 'shall pay 1% of the contract total amount as penalty (settled in CNY).'"
+  ]
 }
 ```
 
-**Note:** The `violations` array contains all violations found in the text block. The `category` field for each violation is automatically populated by the script based on the `rule_id` lookup in the rules file. The top-level `category`, `rule_id`, `violation_reason`, and `suggestion` fields are populated from the first violation for backward compatibility with older report templates.
+**Violation Fields:**
+- `rule_id`: ID of the violated rule (e.g., "R002")
+- `category`: Automatically populated by script from rule's category
+- `violation_text`: Problematic text with sufficient context for unique string matching
+- `violation_reason`: Explanation of why this violates the rule
+- `fix_action`: Action to take - `"delete"`, `"replace"`, or `"manual"`
+- `revised_text`:
+  - For `"replace"`: Complete replacement text
+  - For `"delete"`: Empty string
+  - For `"manual"`: Guidance for human reviewer
 
-**LLM Output:** The LLM only outputs `rule_id`, `violation_text`, `violation_reason`, and `suggestion` for each violation. The script adds `category` by looking up the rule's category from the rules file.
+**LLM Output:** The LLM outputs `rule_id`, `violation_text`, `violation_reason`, `fix_action`, and `revised_text` for each violation. The script adds `category` by looking up the rule's category from the rules file.
 
 When no violations are found:
 ```json

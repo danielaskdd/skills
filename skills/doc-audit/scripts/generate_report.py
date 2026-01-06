@@ -102,7 +102,8 @@ def generate_report_data(manifest: list, rules_file_dict: dict = None) -> dict:
                     'rule_id': rule_id,
                     'violation_text': v.get('violation_text', ''),
                     'violation_reason': v.get('violation_reason', ''),
-                    'suggestion': v.get('suggestion', '')
+                    'fix_action': v.get('fix_action', 'manual'),
+                    'revised_text': v.get('revised_text', '')
                 })
 
                 category_counts[category] += 1

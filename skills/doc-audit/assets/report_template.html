@@ -470,6 +470,52 @@
             content: '💡 ';
         }
 
+        /* Fix action badge styles */
+        .fix-action-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
+            font-size: 0.875rem;
+            font-weight: 600;
+        }
+
+        .fix-action-badge.delete {
+            background: #fef2f2;
+            color: #dc2626;
+            border: 1px solid #fecaca;
+        }
+
+        .fix-action-badge.replace {
+            background: #ecfdf5;
+            color: #16a34a;
+            border: 1px solid #a7f3d0;
+        }
+
+        .fix-action-badge.manual {
+            background: #fef3c7;
+            color: #d97706;
+            border: 1px solid #fcd34d;
+        }
+
+        /* Revised text style (for delete/replace actions) */
+        .revised-text {
+            background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);
+            padding: 1rem;
+            border-radius: 8px;
+            border: 1px solid #a7f3d0;
+            color: #065f46;
+            font-family: 'SF Mono', 'Fira Code', Consolas, monospace;
+            font-size: 0.875rem;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+
+        .revised-text::before {
+            content: '✅ ';
+        }
+
         .distribution-section {
             display: grid;
             grid-template-columns: 1fr 1fr;
@@ -651,10 +697,22 @@
                         <div class="reason-text">{{ v.violation_reason }}</div>
                     </div>
 
-                    {% if v.suggestion %}
+                    {% if v.fix_action %}
                     <div class="issue-content">
-                        <label>修改建议</label>
-                        <div class="suggestion">{{ v.suggestion }}</div>
+                        <label>修正动作</label>
+                        <div class="fix-action-badge {{ v.fix_action }}">
+                            {% if v.fix_action == 'delete' %}🗑️ 删除
+                            {% elif v.fix_action == 'replace' %}✏️ 替换
+                            {% else %}👤 人工审核
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    {% if v.revised_text %}
+                    <div class="issue-content">
+                        <label>{% if v.fix_action == 'manual' %}人工修改建议{% else %}修正内容{% endif %}</label>
+                        <div class="{% if v.fix_action == 'manual' %}suggestion{% else %}revised-text{% endif %}">{{ v.revised_text }}</div>
                     </div>
                     {% endif %}
                 </div>
