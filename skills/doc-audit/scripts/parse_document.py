@@ -12,7 +12,6 @@ from pathlib import Path
 
 try:
     from docx import Document
-    from docx.oxml.ns import qn
 except ImportError:
     print("Error: python-docx not installed. Run: pip install python-docx", file=sys.stderr)
     sys.exit(1)
@@ -49,34 +48,90 @@ def generate_content_uuid(heading: str, content: str, block_index: int) -> str:
     return hashlib.sha256(combined.encode('utf-8')).hexdigest()[:32]
 
 
-def is_heading_paragraph(para) -> tuple:
+def parse_styles_outline_levels(docx_path: str) -> dict:
     """
-    Check if paragraph is a heading by outline level or style.
+    Parse styles.xml to extract outlineLvl definitions for each style.
     
+    Args:
+        docx_path: Path to DOCX file
+        
     Returns:
-        (is_heading: bool, level: int or None)
+        dict: styleId -> outlineLvl (0-8 for headings, 9 for body text)
     """
-    # Check outline level in paragraph XML
-    pPr = para._element.find(qn('w:pPr'))
+    import zipfile
+    try:
+        from defusedxml import ElementTree as ET
+    except ImportError:
+        from xml.etree import ElementTree as ET
+    
+    styles_outline = {}
+    
+    try:
+        with zipfile.ZipFile(docx_path, 'r') as zf:
+            if 'word/styles.xml' not in zf.namelist():
+                return styles_outline
+            
+            tree = ET.parse(zf.open('word/styles.xml'))
+            root = tree.getroot()
+            
+            # Parse style definitions
+            for style in root.findall('.//{http://schemas.openxmlformats.org/wordprocessingml/2006/main}style'):
+                style_id = style.get('{http://schemas.openxmlformats.org/wordprocessingml/2006/main}styleId')
+                if not style_id:
+                    continue
+                
+                # Check for outlineLvl in style's pPr
+                pPr = style.find('{http://schemas.openxmlformats.org/wordprocessingml/2006/main}pPr')
+                if pPr is not None:
+                    outline_lvl_elem = pPr.find('{http://schemas.openxmlformats.org/wordprocessingml/2006/main}outlineLvl')
+                    if outline_lvl_elem is not None:
+                        level = int(outline_lvl_elem.get('{http://schemas.openxmlformats.org/wordprocessingml/2006/main}val'))
+                        styles_outline[style_id] = level
+    except Exception:
+        # Silently ignore parsing errors
+        pass
+    
+    return styles_outline
+
+
+def get_heading_level(para_element, styles_outline_map: dict) -> int:
+    """
+    Get heading level from paragraph, checking both direct format and style.
+    
+    Priority: paragraph outlineLvl > style outlineLvl
+    
+    Args:
+        para_element: lxml paragraph element
+        styles_outline_map: dict of styleId -> outlineLvl from styles.xml
+        
+    Returns:
+        int: 0-8 for heading levels (0=level 1, 1=level 2, etc.), None for non-heading
+    """
+    # 1. Check paragraph direct format
+    pPr = para_element.find('{http://schemas.openxmlformats.org/wordprocessingml/2006/main}pPr')
     if pPr is not None:
-        outline_lvl = pPr.find(qn('w:outlineLvl'))
-        if outline_lvl is not None:
-            level = int(outline_lvl.get(qn('w:val')))
-            return (True, level + 1)  # Convert 0-based to 1-based
+        outline_elem = pPr.find('{http://schemas.openxmlformats.org/wordprocessingml/2006/main}outlineLvl')
+        if outline_elem is not None:
+            level = int(outline_elem.get('{http://schemas.openxmlformats.org/wordprocessingml/2006/main}val'))
+            # Only 0-8 are true heading levels (9 is body text)
+            if level < 9:
+                return level
+            else:
+                return None  # Level 9 is body text
     
-    # Check style name
-    if para.style and para.style.name:
-        style_name = para.style.name
-        if style_name.startswith('Heading'):
-            try:
-                level = int(style_name.replace('Heading', '').strip())
-                return (True, level)
-            except ValueError:
-                return (True, 1)
-        if style_name in ('Title', '标题'):
-            return (True, 0)
+    # 2. Check style definition's outlineLvl
+    if pPr is not None:
+        pStyle_elem = pPr.find('{http://schemas.openxmlformats.org/wordprocessingml/2006/main}pStyle')
+        if pStyle_elem is not None:
+            style_id = pStyle_elem.get('{http://schemas.openxmlformats.org/wordprocessingml/2006/main}val')
+            if style_id and style_id in styles_outline_map:
+                level = styles_outline_map[style_id]
+                if level < 9:
+                    return level
+                else:
+                    return None
     
-    return (False, None)
+    return None
 
 
 def extract_audit_blocks(file_path: str) -> list:
@@ -96,6 +151,7 @@ def extract_audit_blocks(file_path: str) -> list:
     """
     doc = Document(file_path)
     resolver = NumberingResolver(file_path)
+    styles_outline = parse_styles_outline_levels(file_path)
     
     blocks = []
     current_heading = "Preface/Uncategorized"
@@ -124,29 +180,11 @@ def extract_audit_blocks(file_path: str) -> list:
             label = resolver.get_label(element)
             full_text = f"{label} {para_text}".strip() if label else para_text
             
-            # Check if this is a heading by outline level
-            is_heading = False
-            level = None
+            # Check if this is a heading using the new function
+            outline_level = get_heading_level(element, styles_outline)
             
-            pPr = element.find('{http://schemas.openxmlformats.org/wordprocessingml/2006/main}pPr')
-            if pPr is not None:
-                outline = pPr.find('{http://schemas.openxmlformats.org/wordprocessingml/2006/main}outlineLvl')
-                if outline is not None:
-                    is_heading = True
-                    level = int(outline.get('{http://schemas.openxmlformats.org/wordprocessingml/2006/main}val')) + 1
-            
-            # Also check by style if no outline level
-            if not is_heading:
-                # Find matching paragraph object to check style
-                para_idx = list(body).index(element)
-                para_count = 0
-                for p in doc.paragraphs:
-                    if para_count == para_idx:
-                        is_heading, level = is_heading_paragraph(p)
-                        break
-                    para_count += 1
-            
-            if is_heading and level is not None:
+            if outline_level is not None:
+                # This is a heading (outline level 0-8)
                 # Save previous block
                 if current_content:
                     content_text = "\n".join(current_content)
@@ -159,11 +197,15 @@ def extract_audit_blocks(file_path: str) -> list:
                     })
                     current_content = []
                 
+                # Convert 0-based to 1-based level
+                level = outline_level + 1
+                
                 # Update heading stack
                 current_heading_stack = current_heading_stack[:max(level - 1, 0)]
                 current_heading_stack.append(full_text)
                 current_heading = full_text
             else:
+                # Regular paragraph content
                 current_content.append(full_text)
         
         elif tag == 'tbl':  # Table
