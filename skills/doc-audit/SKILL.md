@@ -305,290 +305,94 @@ Each line is a JSON object. Tables are embedded as `<table>JSON</table>` within 
 }
 ```
 
-### 4. Run Audit
+### 4. Run Audit (Advanced)
 
-Execute LLM-based audit on each text block against audit rules:
+Execute LLM-based audit on each text block against audit rules. **Typically invoked automatically by `workflow.sh`** (see tool #6 below).
+
+**Independent use cases**:
+- Debugging audit behavior with `--dry-run`
+- Processing large documents in chunks (`--start-block`, `--end-block`)
+- Resuming interrupted runs (`--resume`)
+- Custom model selection (`--model`)
 
 ```bash
-# Basic usage with auto model selection
+# Basic usage
 python scripts/run_audit.py \
-  --document .claude-work/doc-audit/blocks.jsonl \
-  --rules .claude-work/doc-audit/default_rules.json
+  --document blocks.jsonl \
+  --rules rules.json
 
-# Specify model explicitly
+# Resume from interruption
 python scripts/run_audit.py \
   --document blocks.jsonl \
-  --rules custom_rules.json \
-  --model gemini-2.5-flash
-
-# Process specific block range
-python skills/doc-audit/scripts/run_audit.py \
-  --document blocks.jsonl \
-  --rules rules.json \
-  --start-block 10 \
-  --end-block 50
-
-# Resume from previous interrupted run
-python skills/doc-audit/scripts/run_audit.py \
-  --document blocks.jsonl \
   --rules rules.json \
   --resume
-
-# Dry run to preview prompts without calling LLM
-python skills/doc-audit/scripts/run_audit.py \
-  --document blocks.jsonl \
-  --rules rules.json \
-  --dry-run
 ```
 
-**Key Parameters:**
+📖 **Detailed parameters, resume functionality, and advanced use cases**: See [TOOLS.md - Run Audit](TOOLS.md#4-run-audit)
 
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `--document` / `-d` | path | Yes | Path to document blocks file (JSONL or JSON from `parse_document.py`) |
-| `--rules` / `-r` | path | Yes | Path to audit rules JSON file |
-| `--output` / `-o` | path | No | Output manifest file path (default: `manifest.jsonl`) |
-| `--model` | text | No | LLM model: `auto` (default), `gemini-2.5-flash`, `gpt-5.2`, etc. |
-| `--rate-limit` | float | No | Seconds to wait between API calls (default: 0.5) |
-| `--start-block` | int | No | Start from this block index (0-based, default: 0) |
-| `--end-block` | int | No | End at this block index (inclusive, default: last block) |
-| `--resume` | flag | No | Resume from previous run (skip already-processed blocks) |
-| `--dry-run` | flag | No | Print prompts without calling LLM (for debugging) |
+### 5. Generate Report (Advanced)
 
-**Model Selection (`--model`):**
+Generate interactive HTML audit report from manifest. **Typically invoked automatically by `workflow.sh`** (see tool #6 below).
 
-- `auto` (default): Auto-select based on available API keys (Gemini preferred if both are set)
-- `gemini-2.5-flash`, `gemini-3-flash`: Use Google Gemini (requires `GOOGLE_API_KEY`)
-- `gpt-5.2`, `gpt-4o`, `gpt-4o-mini`: Use OpenAI (requires `OPENAI_API_KEY`)
-- Model defaults are configured in `.claude-work/doc-audit/env.sh`
-
-**Resume Functionality (Advanced):**
-
-The `--resume` flag enables recovery from interrupted audit runs by:
-
-1. **Loading completed UUIDs**: Reads `manifest.jsonl` to get UUIDs of already-processed blocks
-2. **Skipping processed blocks**: During iteration, skips blocks whose UUIDs are in the completed set
-3. **Appending new results**: New audit results are appended to existing `manifest.jsonl`
-
-**Resume Use Cases:**
-
-**Case 1: Simple Resume After Interruption**
-```bash
-# Initial run (interrupted at block 45/100)
-python skills/doc-audit/scripts/run_audit.py \
-  --document blocks.jsonl \
-  --rules rules.json \
-  --output manifest.jsonl
-# ... interrupted (Ctrl+C, network error, etc.)
-
-# Resume from where it left off
-python skills/doc-audit/scripts/run_audit.py \
-  --document blocks.jsonl \
-  --rules rules.json \
-  --output manifest.jsonl \
-  --resume
-# Automatically skips blocks 0-44, continues from block 45
-```
-
-**Case 2: Chunked Processing with Resume**
-
-For large documents, process in chunks to avoid API rate limits or long-running sessions:
-
-```bash
-# Process first chunk (blocks 0-99)
-python skills/doc-audit/scripts/run_audit.py \
-  --document blocks.jsonl \
-  --rules rules.json \
-  --start-block 0 \
-  --end-block 99
-
-# Process second chunk (blocks 100-199) - interrupted at block 150
-python skills/doc-audit/scripts/run_audit.py \
-  --document blocks.jsonl \
-  --rules rules.json \
-  --start-block 100 \
-  --end-block 199
-# ... interrupted
-
-# Resume second chunk (will skip 100-149, continue from 150)
-python skills/doc-audit/scripts/run_audit.py \
-  --document blocks.jsonl \
-  --rules rules.json \
-  --start-block 100 \
-  --end-block 199 \
-  --resume
-
-# Process third chunk (blocks 200-299)
-python skills/doc-audit/scripts/run_audit.py \
-  --document blocks.jsonl \
-  --rules rules.json \
-  --start-block 200 \
-  --end-block 299
-```
-
-**Case 3: Re-audit Specific Blocks (Without Resume)**
-
-To re-audit specific blocks (e.g., after changing rules), **do NOT use `--resume`**:
-
-```bash
-# Re-audit blocks 10-20 (will overwrite those results in manifest)
-python skills/doc-audit/scripts/run_audit.py \
-  --document blocks.jsonl \
-  --rules updated_rules.json \
-  --start-block 10 \
-  --end-block 20
-# Without --resume, it processes all blocks 10-20 regardless of manifest
-```
-
-**Important Notes:**
-
-- ⚠️ **UUID Consistency**: Resume relies on UUIDs. If you re-run `parse_document.py`, `manifest.jsonl` is automatically deleted by the script, a fresh audit is required.
-- ✅ **Append-Only**: Resume appends to `manifest.jsonl`. If you want to start completely fresh, delete the manifest file first.
-- ✅ **Block Range + Resume**: Combining `--start-block`/`--end-block` with `--resume` is valid - it will skip already-processed blocks within the specified range.
-
-**Workflow:**
-
-1. **Build system prompt**: Formats rules as structured instructions (cached by LLM across all blocks)
-2. **Load completed UUIDs**: If `--resume` is set, loads already-processed block UUIDs from manifest
-3. **Iterate blocks**: For each block in range:
-   - Skip if UUID already processed (resume mode)
-   - Build user prompt with heading context + content
-   - Call LLM with structured output schema (Gemini or OpenAI)
-   - Parse violations from LLM response
-   - Add category to each violation (lookup from rule ID)
-   - Save entry to manifest.jsonl (append mode)
-   - Rate limit between requests
-4. **Error handling**: Catches JSON parsing errors and API errors, continues to next block
-
-**Output Format (manifest.jsonl):**
-
-Each line is an audit result:
-```json
-{
-  "uuid": "550e8400-e29b-41d4-a716-446655440000",
-  "p_heading": "2.1 Penalty Clause",
-  "p_content": "If Party B delays payment, they shall pay approximately 1%...",
-  "is_violation": true,
-  "violations": [
-    {
-      "rule_id": "R002",
-      "category": "semantic",
-      "violation_text": "approximately 1% of the total amount",
-      "violation_reason": "Contains vague term 'approximately' and does not specify currency",
-      "fix_action": "replace",
-      "revised_text": "1% of the contract total amount as penalty (settled in CNY)"
-    }
-  ]
-}
-```
-
-### 5. Generate Report
-
-Create HTML audit report from audit manifest with statistics and traceability:
+**Independent use cases**:
+- Re-generating reports after template modifications
+- Custom output locations
+- JSON export for further processing (`--json`)
 
 ```bash
 # Basic usage
 python scripts/generate_report.py manifest.jsonl \
   --template .claude-work/doc-audit/report_template.html \
-  --rules .claude-work/doc-audit/default_rules.json \
-  --output audit_report.html
-
-
-# No rule descriptions in report (not recommended)
-python scripts/generate_report.py manifest.jsonl \
-  --template .claude-work/doc-audit/report_template.html \
-  --output audit_report.html
-
-# Also output JSON data
-python skills/doc-audit/scripts/generate_report.py manifest.jsonl \
-  --template .claude-work/doc-audit/report_template.html \
   --rules rules.json \
-  --output report.html \
-  --json
-
-# For trusted HTML content (disables escaping, not recommended)
-python skills/doc-audit/scripts/generate_report.py manifest.jsonl \
-  --template .claude-work/doc-audit/report_template.html \
-  --output report.html \
-  --trusted-html
+  --output audit_report.html
 ```
 
-**Key Parameters:**
+**Key features**: Interactive filters, issue blocking, export to JSONL, rule details in modals.
 
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `manifest` | path | Yes | Path to audit manifest JSONL file (from `run_audit.py`) |
-| `--output` / `-o` | path | No | Output HTML file path (default: `audit_report.html`) |
-| `--template` / `-t` | path | Yes | Path to Jinja2 HTML template |
-| `--rules` / `-r` | path | No | Path to rules JSON file (optional, recommended for displaying full rule details in modal popups) |
-| `--trusted-html` | flag | No | Disable HTML escaping (only for trusted inputs) |
-| `--json` | flag | No | Also output report data as JSON (same name with `.json` extension) |
+📖 **Detailed parameters and features**: See [TOOLS.md - Generate Report](TOOLS.md#5-generate-report)
 
-**Features:**
+### 6. Workflow Script (Recommended Entry Point)
 
-- **File Information Header**: Displays source document filename and hash (from metadata)
-- **Interactive Fixed Header**:
-  - Problem count displayed in title (Valid: N | Blocked: M)
-  - Category filter dropdown
-  - Status filter buttons (All / Valid / Blocked)
-  - Export audit results button
-- **Dynamic Statistics**: Real-time updates of valid/blocked counts as users interact
-- **Issue Management**:
-  - Each issue can be marked as "blocked" (false positive)
-  - Blocked issues shown with gray styling and strikethrough
-  - Filter issues by category and blocked status
-- **Export Functionality**:
-  - Export non-blocked violations to JSONL format
-  - Uses File System Access API for native save dialog
-  - Includes metadata (source file, hash, export timestamp)
-  - Falls back to traditional download for unsupported browsers
-- **Issue Details**: Each violation with heading, content, reason, and suggestion
-- **Source Tracing**: Expandable source text with click-to-expand/collapse
-- **Rule Information**: Clickable rule badges (e.g., `[R001]`) that display full rule details in modal popups (when `--rules` is provided)
-- **HTML Safety**: Escapes HTML by default; use `--trusted-html` only if all inputs are trusted
-
-**Workflow:**
-
-1. **Load manifest**: Parse `manifest.jsonl` to get all audit results
-2. **Load rules** (optional): If `--rules` provided, load rule descriptions for modal popups
-3. **Generate report data**:
-   - Count total blocks and violations
-   - Group violations by category
-   - Collect unique rules used
-4. **Render HTML**: Use Jinja2 template with report data
-5. **Save output**: Write HTML file (and optionally JSON)
-
-**Output Files:**
-
-- `<output>.html` - HTML report (always generated)
-- `<output>.json` - JSON report data (if `--json` flag is used)
-
-### 6. Workflow Script (Complete Workflow)
-
-`workflow.sh` is a convenience script that runs all three stages automatically:
+`workflow.sh` runs the complete audit pipeline: parse → audit → report. **This is the recommended way to perform audits.**
 
 ```bash
 # Use default rules
 ./.claude-work/doc-audit/workflow.sh document.docx
 
 # Use custom rules
-./.claude-work/doc-audit/workflow.sh document.docx .claude-work/doc-audit/custom_rules.json
+./.claude-work/doc-audit/workflow.sh document.docx custom_rules.json
 ```
 
-**Internal Process:**
+**What it does**:
+1. Parse document → `blocks.jsonl`
+2. Run audit → `manifest.jsonl`
+3. Generate report → `<document_name>_audit_report.html` (saved alongside source document)
 
-1. **Parse document** → `.claude-work/doc-audit/blocks.jsonl` (via `parse_document.py`)
-2. **Run audit** → `.claude-work/doc-audit/manifest.jsonl` (via `run_audit.py`)
-3. **Generate report** → `<document_directory>/<document_name>_audit_report.html` (via `generate_report.py`)
+**Note**: If workflow fails, use individual tools (#3, #4, #5) to debug or continue manually.
 
-**Features:**
+📖 **Internal process details**: See [TOOLS.md - Workflow Script](TOOLS.md#6-workflow-script)
 
-- ✅ Cleans previous intermediate files (`blocks.jsonl`, `manifest.jsonl`) before starting
-- ✅ Final report saved in same directory as source document
-- ✅ Uses working directory's default rules if no custom rules specified
-- ✅ Automatically passes rules to report generation for full rule details
+### 7. Apply Audit Edits (Post-Processing)
 
-**Note:** If the workflow fails at any stage, you can run individual tools (2-5 above) to debug or continue manually.
+Apply exported audit results to Word document with track changes and comments. **Used after manual review of HTML report.**
+
+**Typical workflow**:
+1. Review audit report in browser
+2. Mark false positives as "blocked"
+3. Export non-blocked issues to JSONL
+4. Apply edits to document with this tool
+
+```bash
+# Basic usage
+python scripts/apply_audit_edits.py export.jsonl
+
+# With options
+python scripts/apply_audit_edits.py export.jsonl -o output.docx --skip-hash
+```
+
+**Edit modes**: `delete` (track changes), `replace` (track changes), `manual` (Word comment)
+
+📖 **Detailed parameters, JSONL format, and error handling**: See [TOOLS.md - Apply Audit Edits](TOOLS.md#7-apply-audit-edits)
 
 ## Technical Requirements
 
@@ -631,19 +435,12 @@ When using OpenAI, the scripts use Structured Outputs (`json_schema` response fo
 - ✅ `gpt-4o` (latest)
 - ✅ `gpt-5.x` series (e.g., `gpt-5.2`)
 
-Older models are **NOT supported** and will cause API errors:
-- ❌ `gpt-4-turbo`
-- ❌ `gpt-4`
-- ❌ `gpt-3.5-turbo`
-
-If you encounter errors like "json_schema is not supported", ensure you're using a compatible model.
+Older models are **NOT supported** and will cause API errors. If you encounter errors like "json_schema is not supported", ensure you're using a compatible model.
 
 **Model Configuration:**
 The default models for all scripts are centralized in `.claude-work/doc-audit/env.sh`:
 - **Gemini**: `gemini-3-flash` (changeable via `DOC_AUDIT_GEMINI_MODEL`)
 - **OpenAI**: `gpt-5.2` (changeable via `DOC_AUDIT_OPENAI_MODEL`)
-
-To use different models, edit `.claude-work/doc-audit/env.sh` before running scripts:
 
 ```bash
 # Example: Use a different model across all scripts
@@ -754,7 +551,8 @@ doc-audit/
 │   ├── parse_rules.py          # Rule parsing
 │   ├── parse_document.py       # DOCX parsing (Aspose)
 │   ├── run_audit.py            # LLM audit execution
-│   └── generate_report.py      # Report generation
+│   ├── generate_report.py      # Report generation
+│   └── apply_audit_edits.py    # Apply audit edits to Word document
 └── assets/
     ├── default_rules.json      # Default audit rules (source)
     └── report_template.html    # Jinja2 report template (source)
@@ -780,20 +578,3 @@ doc-audit/
 - Each text block is audited independently - no cross-reference validation
 - Requires Aspose.Words license for production use (evaluation watermark in trial)
 - LLM quality depends on chosen model and rule clarity
-
-## Troubleshooting
-
-**Numbering Not Captured:**
-- Ensure `doc.update_list_labels()` is called before extraction
-- Check if document uses automatic numbering vs. manual numbering
-
-**Table Parsing Issues:**
-- Verify table uses standard Word table format (not text boxes or images)
-- Check for merged cells which may affect structure
-
-**LLM Rate Limiting:**
-- Adjust `--rate-limit` parameter (default: 0.5 seconds between requests)
-
-**Memory Issues with Large Documents:**
-- Process in chunks using `--start-block` and `--end-block` parameters
-- Use `--resume` to continue from previous run if run_audit.py is interrupted
