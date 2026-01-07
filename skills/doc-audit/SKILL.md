@@ -60,7 +60,7 @@ This creates:
 3. **User Confirmation** - ⚠️ **MANDATORY STEP - DO NOT SKIP**:
 
    After generating rules, you **MUST**:
-   - Use `read_file` to read the generated rules file (`.claude-work/doc-audit/custom_rules.json`)
+   - Use `read_file` to read the generated rules file (`.claude-work/doc-audit/<docname>_custom_rules.json`)
    - Present ALL rules to user in the following simplified format:
      ```
      [R001] Rule description...
@@ -77,9 +77,10 @@ This creates:
 ### Phase 2: Parse and Audit
 
 5. **Parse Document** - Extract text blocks from .docx with proper numbering (Aspose)
-   - Output: `.claude-work/doc-audit/blocks.jsonl`
+   - Output: `.claude-work/doc-audit/<docname>_blocks.jsonl` (with document name prefix)
    - ⚠️ **Error handling**: If `parse_document.py` fails (e.g., missing paraId error), **stop the workflow immediately** and inform the user. Do NOT proceed to step 6.
 6. **Execute Audit Work Flow** - LLM audits each text block against rules by `workflow.sh` (created by enviroment setup)
+   - Intermediate: `.claude-work/doc-audit/<docname>_manifest.jsonl`
    - Output: `<document_directory>/<document_name>_audit_report.html` (same directory as source document)
 
 ```
@@ -141,22 +142,23 @@ Intelligently merge base rules with user requirements using LLM.
 ```bash
 # ✅ RECOMMENDED: Initial generation (automatically merges with default rules)
 # Use when: User wants custom requirements PLUS default rules
+# Tip: Use document name prefix for better organization
 python scripts/parse_rules.py \
   --input "Check for ambiguous payment terms and missing signatures" \
-  --output .claude-work/doc-audit/custom_rules.json
+  --output .claude-work/doc-audit/mydoc_custom_rules.json
 
 # ✅ RECOMMENDED: Iterative refinement (continues from previous output)
 # Use when: User wants to modify/add/remove specific rules
 python scripts/parse_rules.py \
-  --base-rules .claude-work/doc-audit/custom_rules.json \
+  --base-rules .claude-work/doc-audit/mydoc_custom_rules.json \
   --input "Add rule for checking ambiguous references" \
-  --output .claude-work/doc-audit/custom_rules.json
+  --output .claude-work/doc-audit/mydoc_custom_rules.json
 
 # ✅ Further iteration
 python scripts/parse_rules.py \
-  --base-rules .claude-work/doc-audit/custom_rules.json \
+  --base-rules .claude-work/doc-audit/mydoc_custom_rules.json \
   --input "Remove R009, make signature rule more specific" \
-  --output .claude-work/doc-audit/custom_rules.json
+  --output .claude-work/doc-audit/mydoc_custom_rules.json
 
 # Use --base-rules parameter to generate customized rules for most of the time.
 # ⚠️ ONLY use --no-base when user EXPLICITLY requests to exclude default rules
@@ -167,7 +169,7 @@ python scripts/parse_rules.py \
 python scripts/parse_rules.py \
   --no-base \
   --input "Check for missing section numbers and inconsistent terminology" \
-  --output .claude-work/doc-audit/custom_rules.json
+  --output .claude-work/doc-audit/mydoc_custom_rules.json
 ```
 
 **Decision Guide:**
@@ -175,6 +177,11 @@ python scripts/parse_rules.py \
 - User: "Add rule for X" → ✅ Use `--base-rules`
 - User: "ONLY check for A, no other rules" → ⚠️ Use `--no-base`
 - User: "Don't include default/standard rules" → ⚠️ Use `--no-base`
+
+**Naming Best Practice:**
+When auditing multiple documents, use document name prefixes for custom rules to avoid confusion:
+- `mydoc_custom_rules.json` for mydoc.docx
+- `contract_custom_rules.json` for contract.docx
 
 **Key Parameters:**
 
@@ -364,8 +371,8 @@ python scripts/generate_report.py manifest.jsonl \
 ```
 
 **What it does**:
-1. Parse document → `blocks.jsonl`
-2. Run audit → `manifest.jsonl`
+1. Parse document → `<docname>_blocks.jsonl`
+2. Run audit → `<docname>_manifest.jsonl`
 3. Generate report → `<document_name>_audit_report.html` (saved alongside source document)
 
 **Note**: If workflow fails, use individual tools (#3, #4, #5) to debug or continue manually.
@@ -559,17 +566,17 @@ doc-audit/
 
 # Working directory (created by setup script - all work happens here)
 .claude-work/
-├── venv/                          # Python virtual environment (shared across skills)
-├── logs/                          # Operation logs (shared across skills)
-└── doc-audit/                     # Document audit working directory
-    ├── env.sh                     # Environment activation script
-    ├── workflow.sh                # Convenience workflow script
-    ├── README.md                  # Working directory documentation
-    ├── default_rules.json         # Default rules (copied from assets)
-    ├── report_template.html       # Report template (copied from assets)
-    ├── blocks.jsonl               # Parsed document blocks
-    ├── manifest.jsonl             # Audit results
-    └── custom_rules.json          # Custom rules (optional)
+├── venv/                                 # Python virtual environment (shared across skills)
+├── logs/                                 # Operation logs (shared across skills)
+└── doc-audit/                            # Document audit working directory
+    ├── env.sh                            # Environment activation script
+    ├── workflow.sh                       # Convenience workflow script
+    ├── README.md                         # Working directory documentation
+    ├── default_rules.json                # Default rules (copied from assets)
+    ├── report_template.html              # Report template (copied from assets)
+    ├── <docname>_blocks.jsonl            # Parsed document blocks (per document)
+    ├── <docname>_manifest.jsonl          # Audit results (per document)
+    └── <docname>_custom_rules.json       # Custom rules (optional, per document)
 ```
 
 ## Limitations

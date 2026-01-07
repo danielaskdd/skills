@@ -130,6 +130,10 @@ DOC_DIR="$(cd "$(dirname "$DOCUMENT")" && pwd)"
 DOC_NAME="$(basename "$DOCUMENT" .docx)"
 OUTPUT_REPORT="$DOC_DIR/${DOC_NAME}_audit_report.html"
 
+# Define intermediate files with document name prefix
+BLOCKS_FILE="$SCRIPT_DIR/${DOC_NAME}_blocks.jsonl"
+MANIFEST_FILE="$SCRIPT_DIR/${DOC_NAME}_manifest.jsonl"
+
 echo "=========================================="
 echo "Document Audit Workflow"
 echo "=========================================="
@@ -139,28 +143,28 @@ echo "Report: $OUTPUT_REPORT"
 echo
 
 # Clean previous intermediate files
-rm -f "$SCRIPT_DIR/blocks.jsonl"
-rm -f "$SCRIPT_DIR/manifest.jsonl"
+rm -f "$BLOCKS_FILE"
+rm -f "$MANIFEST_FILE"
 
 # Step 1: Parse document
 echo "Step 1: Parsing document..."
 python3 "$DOC_AUDIT_SKILL_PATH/scripts/parse_document.py" \
     "$DOCUMENT" \
-    --output "$SCRIPT_DIR/blocks.jsonl"
+    --output "$BLOCKS_FILE"
 echo
 
 # Step 2: Run audit
 echo "Step 2: Running audit..."
 python3 "$DOC_AUDIT_SKILL_PATH/scripts/run_audit.py" \
-    --document "$SCRIPT_DIR/blocks.jsonl" \
+    --document "$BLOCKS_FILE" \
     --rules "$RULES" \
-    --output "$SCRIPT_DIR/manifest.jsonl"
+    --output "$MANIFEST_FILE"
 echo
 
 # Step 3: Generate report
 echo "Step 3: Generating report..."
 python3 "$DOC_AUDIT_SKILL_PATH/scripts/generate_report.py" \
-    "$SCRIPT_DIR/manifest.jsonl" \
+    "$MANIFEST_FILE" \
     --output "$OUTPUT_REPORT" \
     --template "$SCRIPT_DIR/report_template.html" \
     --rules "$RULES"
@@ -168,6 +172,9 @@ echo
 
 echo "=========================================="
 echo "✓ Audit Complete!"
+echo "Intermediate files:"
+echo "  - Blocks: $BLOCKS_FILE"
+echo "  - Manifest: $MANIFEST_FILE"
 echo "Report: $OUTPUT_REPORT"
 echo "=========================================="
 EOF
@@ -187,18 +194,20 @@ This directory is automatically created by Claude for document audit work.
 
 ```
 .claude-work/
-├── venv/                     # Python virtual environment (shared)
-├── logs/                     # Operation logs (shared)
-└── doc-audit/                # Document audit working directory
-    ├── env.sh                # Environment activation script
-    ├── workflow.sh           # Convenience workflow script
-    ├── README.md             # This file
-    ├── default_rules.json    # Default audit rules (copied from skill)
-    ├── report_template.html  # Report template (copied from skill)
-    ├── blocks.jsonl          # Parsed document blocks
-    ├── manifest.jsonl        # Audit results
-    └── custom_rules.json     # Custom rules (optional)
+├── venv/                           # Python virtual environment (shared)
+├── logs/                           # Operation logs (shared)
+└── doc-audit/                      # Document audit working directory
+    ├── env.sh                      # Environment activation script
+    ├── workflow.sh                 # Convenience workflow script
+    ├── README.md                   # This file
+    ├── default_rules.json          # Default audit rules (copied from skill)
+    ├── report_template.html        # Report template (copied from skill)
+    ├── <docname>_blocks.jsonl      # Parsed document blocks (per document)
+    ├── <docname>_manifest.jsonl    # Audit results (per document)
+    └── <docname>_custom_rules.json # Custom rules (optional, per document)
 ```
+
+**Note:** Intermediate files use the document name as a prefix (e.g., `contract_blocks.jsonl`, `contract_manifest.jsonl`) to allow processing multiple documents simultaneously without file conflicts.
 
 ## Quick Start
 
@@ -220,19 +229,19 @@ The audit report will be saved as `<document>_audit_report.html` in the same dir
 # 1. Activate environment
 source .claude-work/doc-audit/env.sh
 
-# 2. Parse document
+# 2. Parse document (use document name prefix for intermediate files)
 python skills/doc-audit/scripts/parse_document.py document.docx \
-  --output .claude-work/doc-audit/blocks.jsonl
+  --output .claude-work/doc-audit/document_blocks.jsonl
 
 # 3. Run audit (with default rules from working directory)
 python skills/doc-audit/scripts/run_audit.py \
-  --document .claude-work/doc-audit/blocks.jsonl \
+  --document .claude-work/doc-audit/document_blocks.jsonl \
   --rules .claude-work/doc-audit/default_rules.json \
-  --output .claude-work/doc-audit/manifest.jsonl
+  --output .claude-work/doc-audit/document_manifest.jsonl
 
 # 4. Generate report (with template and rules from working directory)
 python skills/doc-audit/scripts/generate_report.py \
-  .claude-work/doc-audit/manifest.jsonl \
+  .claude-work/doc-audit/document_manifest.jsonl \
   --output document_audit_report.html \
   --template .claude-work/doc-audit/report_template.html \
   --rules .claude-work/doc-audit/default_rules.json
@@ -245,14 +254,16 @@ If you need custom audit rules:
 ```bash
 source .claude-work/doc-audit/env.sh
 
-# Generate custom rules
+# Generate custom rules (recommended: use document name prefix)
 python skills/doc-audit/scripts/parse_rules.py \
   --input "Check for vague payment terms and missing signatures" \
-  --output .claude-work/doc-audit/custom_rules.json
+  --output .claude-work/doc-audit/document_custom_rules.json
 
 # Run audit with custom rules
-./.claude-work/doc-audit/workflow.sh document.docx .claude-work/doc-audit/custom_rules.json
+./.claude-work/doc-audit/workflow.sh document.docx .claude-work/doc-audit/document_custom_rules.json
 ```
+
+**Tip:** Use document name prefixes for custom rules (e.g., `contract_custom_rules.json`, `report_custom_rules.json`) when auditing multiple documents to avoid confusion.
 
 ## Environment Variables
 
@@ -295,12 +306,18 @@ All scripts (`parse_rules.py` and `run_audit.py`) will automatically use the con
 
 ## Output Files
 
-- **Intermediate files** → `.claude-work/doc-audit/`
-  - `blocks.jsonl` - Parsed document structure
-  - `manifest.jsonl` - Detailed audit results
+- **Intermediate files** → `.claude-work/doc-audit/` (with document name prefix)
+  - `<docname>_blocks.jsonl` - Parsed document structure
+  - `<docname>_manifest.jsonl` - Detailed audit results
+  - `<docname>_custom_rules.json` - Custom rules (if generated)
   
 - **Final report** → Same directory as source document
-  - `<document>_audit_report.html` - HTML audit report
+  - `<docname>_audit_report.html` - HTML audit report
+
+**Example:** For `contract.docx`:
+- `.claude-work/doc-audit/contract_blocks.jsonl`
+- `.claude-work/doc-audit/contract_manifest.jsonl`
+- `contract_audit_report.html` (in same directory as source)
 
 ## Features
 
@@ -361,11 +378,12 @@ pip install aspose-words jinja2 google-genai openai
 **Resume interrupted audit**
 ```bash
 python skills/doc-audit/scripts/run_audit.py \
-  --document .claude-work/doc-audit/blocks.jsonl \
+  --document .claude-work/doc-audit/document_blocks.jsonl \
   --rules .claude-work/doc-audit/default_rules.json \
-  --output .claude-work/doc-audit/manifest.jsonl \
+  --output .claude-work/doc-audit/document_manifest.jsonl \
   --resume
 ```
+(Replace `document` with your actual document name)
 
 ## Clean Up
 
