@@ -226,12 +226,22 @@ def build_system_prompt(rules: list) -> str:
 
 Instructions:
 1. Check if the provided text block violates ANY of the rules above
-2. For each violation found, provide:
+2. Report each violation as a separate item. Do not merge multiple instances of the same violation category into one entry.
+3. For each violation found, provide:
    - The rule ID that was violated
-   - The violation text with enough surrounding context for unique string matching, but do not include list number and bullet point
+   - The violation text with enough surrounding context for unique string matching
    - Why it's a violation
    - The fix action: "delete", "replace", or "manual"
    - The revised text based on fix_action
+
+violation_text guidelines:
+- The extracted text must be a direct verbatim quote from the source content, include line breaks, tabs, and other whitespace characters
+- Include sufficient context to ensure the string can be uniquely and accurately located within the document
+- Do not use ellipses to replace or omit any part of the original text
+- Exclude chapter/heading numbers, list markers, and bullet points from the violation_text
+- If the violating content is excessively long (e.g., spanning multiple sentences), extract only the leading portion, ensuring it is sufficient to uniquely locate via string search
+- If an entire section is in violation, select the corresponding heading (excluding the chapter or section number) as the violation_text
+- For violations spanning multiple table cells, select the content of the first cell only; do not consolidate multiple cells into a single violation_text entry
 
 fix_action guidelines:
 - "delete": Use when the problematic text should be completely removed
@@ -242,6 +252,8 @@ revised_text guidelines:
 - For "delete": Set to empty string ""
 - For "replace": Provide the complete replacement text that can directly substitute violation_text
 - For "manual": Provide guidance for the human reviewer
+
+If the violation_text is truncated due to excessive length or fails to achieve an exact match with the source material, the fix_action must be set to "manual"
 
 Return your analysis as a JSON object with this structure:
 {{
