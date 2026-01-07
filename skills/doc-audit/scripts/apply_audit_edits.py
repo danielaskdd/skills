@@ -666,6 +666,52 @@ class AuditEditApplier:
         
         self.doc.save(str(self.output_path))
         print(f"Saved to: {self.output_path}")
+    
+    def save_failed_items(self) -> Optional[Path]:
+        """
+        Save failed edit items to JSONL file for retry.
+        
+        Returns:
+            Path to failed items file if any failures exist, None otherwise
+        """
+        failed_results = [r for r in self.results if not r.success]
+        
+        if not failed_results:
+            return None  # No failures, no file created
+        
+        # Generate output path: <input>_fail.jsonl
+        fail_path = self.jsonl_path.with_stem(self.jsonl_path.stem + '_fail')
+        
+        with open(fail_path, 'w', encoding='utf-8') as f:
+            # Write enhanced meta line
+            meta_line = {
+                **self.meta,  # Include all original meta fields
+                'type': 'meta',  # Explicitly ensure type field exists (required for retry)
+                'original_export': self.jsonl_path.name,
+                'generated_at': datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%S%z'),
+                'failed_count': len(failed_results),
+                'total_count': len(self.edit_items)
+            }
+            json.dump(meta_line, f, ensure_ascii=False)
+            f.write('\n')
+            
+            # Write failed items with error information
+            for result in failed_results:
+                item = result.item
+                data = {
+                    'uuid': item.uuid,
+                    'violation_text': item.violation_text,
+                    'violation_reason': item.violation_reason,
+                    'fix_action': item.fix_action,
+                    'revised_text': item.revised_text,
+                    'category': item.category,
+                    'rule_id': item.rule_id,
+                    '_error': result.error_message  # Add error info for debugging
+                }
+                json.dump(data, f, ensure_ascii=False)
+                f.write('\n')
+        
+        return fail_path
 
 # ============================================================
 # Main Function
@@ -724,6 +770,15 @@ def main():
             applier.save()
         else:
             applier.save(dry_run=True)
+        
+        # Save failed items for retry
+        fail_file = applier.save_failed_items()
+        if fail_file:
+            print(f"\n{'=' * 50}")
+            print(f"Failed items saved to: {fail_file}")
+            print(f"  → You can modify and retry with this file")
+            print(f"  → Command: python {sys.argv[0]} {fail_file} --skip-hash")
+            print(f"{'=' * 50}")
             
         sys.exit(0 if fail_count == 0 else 1)
         

@@ -592,6 +592,9 @@
                         <span class="issue-stats" id="issueStats">
                             有效: <span id="validCount">{{ violation_count }}</span> | 
                             屏蔽: <span id="blockedCount">0</span>
+                            <span id="filteredStats" style="display: none;"> | 
+                                当前显示: <span id="filteredCount">0</span>
+                            </span>
                         </span>
                     </h1>
                 </div>
@@ -739,6 +742,7 @@
                 issue.removeAttribute('data-blocked');
             }
             updateStats();
+            applyFilters();
         }
 
         function filterByStatus(status) {
@@ -753,6 +757,7 @@
             const categoryFilter = document.getElementById('categoryFilter').value;
             currentCategoryFilter = categoryFilter;
 
+            let visibleCount = 0;
             document.querySelectorAll('.issue').forEach(issue => {
                 const category = issue.getAttribute('data-category');
                 const isBlocked = issue.hasAttribute('data-blocked');
@@ -762,8 +767,25 @@
                                  (currentStatusFilter === 'blocked' && isBlocked) ||
                                  (currentStatusFilter === 'valid' && !isBlocked);
                 
-                issue.style.display = (showByCategory && showByStatus) ? 'block' : 'none';
+                const shouldShow = showByCategory && showByStatus;
+                issue.style.display = shouldShow ? 'block' : 'none';
+                
+                if (shouldShow) {
+                    visibleCount++;
+                }
             });
+            
+            // Update filtered stats display
+            const hasActiveFilter = (categoryFilter !== 'all' || currentStatusFilter !== 'all');
+            const filteredStatsElement = document.getElementById('filteredStats');
+            const filteredCountElement = document.getElementById('filteredCount');
+            
+            if (hasActiveFilter) {
+                filteredCountElement.textContent = visibleCount;
+                filteredStatsElement.style.display = 'inline';
+            } else {
+                filteredStatsElement.style.display = 'none';
+            }
         }
 
         function updateStats() {
