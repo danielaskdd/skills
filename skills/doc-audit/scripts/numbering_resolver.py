@@ -44,6 +44,9 @@ class NumberingResolver:
         self.style_numpr: Dict[str, dict] = {}  # styleId -> {numId, ilvl} from styles.xml
         self.style_numpr_overrides: Dict[str, dict] = {}  # Runtime overrides when direct numPr + pStyle
         self.style_based_on: Dict[str, str] = {}  # styleId -> basedOn styleId
+        # Smart numbering merge state (Word's rendering behavior)
+        self.last_numId: str = None  # Previous paragraph's numId
+        self.last_abstract_id: str = None  # Previous paragraph's abstractNumId
         self._parse_numbering_xml(docx_path)
         self._parse_styles_xml(docx_path)
     
@@ -220,18 +223,38 @@ class NumberingResolver:
                         num_id = style_num['numId']
                         ilvl = style_num['ilvl']
             
-            # If still no numbering found, return empty
+            # If still no numbering found, clear state and return empty
             if num_id is None:
+                # Non-numbered paragraph - clear tracking state
+                self.last_numId = None
+                self.last_abstract_id = None
                 return ""
             
             # Get abstract definition
             abstract_id = self.num_to_abstract.get(num_id)
             if abstract_id is None or abstract_id not in self.abstract_nums:
+                # Clear state for invalid numbering
+                self.last_numId = None
+                self.last_abstract_id = None
                 return ""
             
             levels = self.abstract_nums[abstract_id]
             if ilvl not in levels:
+                # Clear state for invalid level
+                self.last_numId = None
+                self.last_abstract_id = None
                 return ""
+            
+            # Smart numbering merge: Word's rendering behavior
+            # If previous paragraph had different numId but same abstractNumId,
+            # AND current numId has been used before (not new), copy counter to continue numbering
+            if (self.last_numId is not None and 
+                self.last_numId != num_id and 
+                self.last_abstract_id == abstract_id and
+                self.last_numId in self.counters and
+                num_id in self.counters):  # Only merge if current numId already exists
+                # Merge: copy previous numId's counter to current numId
+                self.counters[num_id] = self.counters[self.last_numId].copy()
             
             # Initialize/update counter
             if num_id not in self.counters:
@@ -254,7 +277,13 @@ class NumberingResolver:
                 self.counters[num_id][ilvl] += 1
             
             # Format the label using lvlText template
-            return self._format_label(num_id, ilvl, levels)
+            label = self._format_label(num_id, ilvl, levels)
+            
+            # Update tracking state for next paragraph
+            self.last_numId = num_id
+            self.last_abstract_id = abstract_id
+            
+            return label
         except Exception:
             # Return empty on any error to avoid breaking document parsing
             return ""
