@@ -49,7 +49,7 @@ AUDIT_RESULT_SCHEMA = {
                     },
                     "violation_text": {
                         "type": "string",
-                        "description": "The problematic text with sufficient surrounding context for unique string matching in the document, but do not include list number and bullet point"
+                        "description": "The problematic text directly verbatim quote from the source content, and not span multiple cells"
                     },
                     "violation_reason": {
                         "type": "string",
@@ -236,12 +236,11 @@ Instructions:
 
 violation_text guidelines:
 - The extracted text must be a direct verbatim quote from the source content, include line breaks, tabs, and other whitespace characters
-- Include sufficient context to ensure the string can be uniquely and accurately located within the document
 - Do not use ellipses to replace or omit any part of the original text
 - Exclude chapter/heading numbers, list markers, and bullet points from the violation_text
 - If the violating content is excessively long (e.g., spanning multiple sentences), extract only the leading portion, ensuring it is sufficient to uniquely locate via string search
-- If an entire section is in violation, select the corresponding heading (excluding the chapter or section number) as the violation_text
-- For violations spanning multiple table cells, select the content of the first cell only; do not consolidate multiple cells into a single violation_text entry
+- If an entire section is in violation, select the corresponding heading as the violation_text (excluding `Section:` and the following heading number) 
+- For violations spanning multiple table cells, select text from one of the most relevant cell only; do not consolidate multiple cells into a single violation_text entry
 
 fix_action guidelines:
 - "delete": Use when the problematic text should be completely removed
