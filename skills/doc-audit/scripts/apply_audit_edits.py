@@ -46,6 +46,8 @@ class EditItem:
     revised_text: str            # Replacement text or suggestion
     category: str                # Category
     rule_id: str                 # Rule ID
+    heading: str = ''            # Violation heading/title
+    content: str = ''            # Original paragraph content
 
 @dataclass
 class EditResult:
@@ -122,7 +124,9 @@ class AuditEditApplier:
                         fix_action=data.get('fix_action', 'manual'),
                         revised_text=data.get('revised_text', ''),
                         category=data.get('category', ''),
-                        rule_id=data.get('rule_id', '')
+                        rule_id=data.get('rule_id', ''),
+                        heading=data.get('heading', ''),
+                        content=data.get('content', '')
                     ))
         
         if not meta:
@@ -695,17 +699,19 @@ class AuditEditApplier:
             json.dump(meta_line, f, ensure_ascii=False)
             f.write('\n')
             
-            # Write failed items with error information
+            # Write failed items with error information (matching HTML export field order)
             for result in failed_results:
                 item = result.item
                 data = {
-                    'uuid': item.uuid,
-                    'violation_text': item.violation_text,
-                    'violation_reason': item.violation_reason,
-                    'fix_action': item.fix_action,
-                    'revised_text': item.revised_text,
                     'category': item.category,
+                    'fix_action': item.fix_action,
+                    'violation_reason': item.violation_reason,
+                    'violation_text': item.violation_text,
+                    'revised_text': item.revised_text,
                     'rule_id': item.rule_id,
+                    'uuid': item.uuid,
+                    'heading': item.heading,
+                    'content': item.content,
                     '_error': result.error_message  # Add error info for debugging
                 }
                 json.dump(data, f, ensure_ascii=False)

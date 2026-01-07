@@ -818,7 +818,19 @@
                 if (!issue || issue.hasAttribute('data-blocked')) {
                     return; // Skip blocked items
                 }
-                exportData.push(JSON.stringify(v));
+                // Export with specified field order
+                const orderedViolation = {
+                    category: v.category,
+                    fix_action: v.fix_action,
+                    violation_reason: v.violation_reason,
+                    violation_text: v.violation_text,
+                    revised_text: v.revised_text,
+                    rule_id: v.rule_id,
+                    uuid: v.uuid,
+                    heading: v.heading,
+                    content: v.content
+                };
+                exportData.push(JSON.stringify(orderedViolation));
             });
             
             const content = exportData.join('\n');
